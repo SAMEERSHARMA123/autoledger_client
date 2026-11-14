@@ -15,7 +15,7 @@ const KPI_DATA = [
   {
     id: 2,
     title: "Monthly Inflow",
-    value: "$4,600.00",
+    value: "₹4,600.00",
     colors: "bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-[var(--color-charcoal)]",
     labelColor: "text-[var(--color-muted)]",
     hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-amber)]",
@@ -24,7 +24,7 @@ const KPI_DATA = [
   {
     id: 3,
     title: "Monthly Outflow",
-    value: "$1,850.00",
+    value: "₹1,850.00",
     colors: "bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] border-[var(--color-charcoal)]",
     labelColor: "text-[var(--color-muted)]",
     hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-amber)]",
@@ -33,7 +33,7 @@ const KPI_DATA = [
   {
     id: 4,
     title: "Active Debts",
-    value: "$850.00",
+    value: "₹850.00",
     colors: "bg-[var(--color-coolwhite)] text-[var(--color-vanta)] border-2 border-[var(--color-charcoal)]",
     labelColor: "text-[var(--color-charcoal)]",
     hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-vanta)]",
