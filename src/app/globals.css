@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  /* Industrial Forge Colors */
+  --color-vanta: #0A0A0A;
+  --color-charcoal: #171717;
+  --color-amber: #EA580C;
+  --color-crimson: #DC2626;
+  --color-coolwhite: #F3F4F6;
+  --color-muted: #737373;
+
+  /* Brutalist Shadows */
+  --shadow-brutal: 4px 4px 0px 0px rgba(234, 88, 12, 1);
+  --shadow-brutal-sm: 2px 2px 0px 0px rgba(234, 88, 12, 1);
+}
+
+/* Custom Highlight Color */
+::selection {
+  background-color: var(--color-amber);
+  color: var(--color-vanta);
+}
