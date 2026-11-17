@@ -1,9 +1,21 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ArrowRight, AlertTriangle, Flame, Target, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/axios";
+import { confirmPopup } from "@/lib/confirmPopup";
+
+interface ExpenseItem {
+  _id: string;
+  amount: number;
+  type: string;
+  category: string;
+  paymentMethod: string;
+  notes?: string;
+  isDebtRelated?: boolean;
+  date: string;
+}
 
 export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolean }) {
   const [amount, setAmount] = useState("");
@@ -11,13 +23,33 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
   const [mode, setMode] = useState("UPI");
   const [note, setNote] = useState("");
   const [isDebt, setIsDebt] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [recentExpenses, setRecentExpenses] = useState<ExpenseItem[]>([]);
   const [error, setError] = useState("");
 
   const audioRef = useRef<HTMLAudioElement | null>(
     typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
   );
 
+  // Fetch Latest 6 Paginated Expenses
+  const fetchRecentExpenses = async () => {
+    try {
+      const { data } = await api.get("/expenses?page=1&limit=6");
+      setRecentExpenses(data.data || []);
+    } catch (err) {
+      console.error("Failed to fetch expenses:", err);
+    } finally {
+      setListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecentExpenses();
+  }, []);
+
+  // Add New Expense
   const handleLogExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
@@ -26,31 +58,46 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
     setError("");
 
     try {
-      // Backend automatically uses the HttpOnly cookie for auth
       await api.post("/expenses", {
         amount: Number(amount),
+        type: "EXPENSE",
         category,
-        paymentMode: mode,
-        note,
-        isDebt,
+        paymentMethod: mode,
+        notes: note,
+        isDebtRelated: isDebt,
       });
 
       if (!isMuted && audioRef.current) {
         audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => { });
+        audioRef.current.play().catch(() => {});
       }
 
       setAmount("");
       setNote("");
       setIsDebt(false);
-      
-      // Note: In a real app, you would also fetch updated data here 
-      // or use a state manager like Zustand to trigger a re-fetch for the UI
-      
+
+      await fetchRecentExpenses();
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to log expense");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Delete Expense using the short confirmPopup utility
+  const handleDeleteExpense = async (item: ExpenseItem) => {
+    const confirmed = await confirmPopup(
+      `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
+      "Delete Expense"
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/expenses/${item._id}`);
+      setRecentExpenses((prev) => prev.filter((exp) => exp._id !== item._id));
+      fetchRecentExpenses();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to delete expense");
     }
   };
 
@@ -109,22 +156,15 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             className="w-full flex-1 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
           />
 
-          <label className="flex items-center gap-2 cursor-pointer font-mono text-sm uppercase text-[var(--color-muted)] hover:text-white transition-colors">
+          <label className="flex items-center gap-2 cursor-pointer font-mono text-sm uppercase text-[var(--color-muted)] hover:text-white transition-colors select-none">
             <input
               type="checkbox"
               checked={isDebt}
-              onChange={(e) => {
-                setIsDebt(e.target.checked);
-                if (!isMuted && audioRef.current) {
-                  audioRef.current.currentTime = 0;
-                  audioRef.current.play().catch(() => { });
-                }
-              }}
+              onChange={(e) => setIsDebt(e.target.checked)}
               className="w-5 h-5 accent-[var(--color-amber)] bg-[var(--color-charcoal)] border-zinc-800 rounded-none cursor-pointer"
             />
             Debt?
           </label>
-
 
           <button
             type="submit"
@@ -140,29 +180,62 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* =========================================
-            2. RECENT ACTIVITY (Left Side - 60%)
+            2. RECENT ACTIVITY (Latest 6 Paginated)
         ========================================= */}
         <div className="lg:col-span-2 bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] flex flex-col shadow-[var(--shadow-brutal)]">
           <div className="p-5 border-b border-zinc-800 flex justify-between items-center">
-            <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">Recent Activity //</h2>
+            <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">
+              Recent Activity //
+            </h2>
+            
           </div>
 
-          <div className="flex flex-col">
-            {[1, 2, 3, 4, 5].map((item, i) => (
-              <div key={i} className="group flex items-center justify-between p-4 border-b border-zinc-800/50 hover:bg-[var(--color-charcoal)] transition-colors">
-                <div className="flex items-center gap-4">
-                  <span className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-mono text-xs px-2 py-1 uppercase font-bold border border-zinc-700">Food</span>
-                  <span className="font-sans text-[var(--color-coolwhite)]">Lunch at Cafe</span>
-                  <span className="font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-0.5">UPI</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-mono font-bold text-[var(--color-coolwhite)]">₹450.00</span>
-                  <button className="text-zinc-600 hover:text-[var(--color-crimson)] transition-colors opacity-0 group-hover:opacity-100 cursor-pointer">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+          <div className="flex flex-col flex-1">
+            {listLoading ? (
+              <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase animate-pulse">
+                Loading expenses...
               </div>
-            ))}
+            ) : recentExpenses.length === 0 ? (
+              <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase">
+                No expenses recorded yet.
+              </div>
+            ) : (
+              recentExpenses.map((item) => (
+                <div key={item._id} className="group flex items-center justify-between p-4 border-b border-zinc-800/50 hover:bg-[var(--color-charcoal)] transition-colors">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <span className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-mono text-xs px-2 py-1 uppercase font-bold border border-zinc-700 flex-shrink-0">
+                      {item.category}
+                    </span>
+                    <span className="font-sans text-[var(--color-coolwhite)] truncate">
+                      {item.notes || item.category}
+                    </span>
+                    {item.paymentMethod && (
+                      <span className="hidden sm:inline-block font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-0.5 flex-shrink-0">
+                        {item.paymentMethod}
+                      </span>
+                    )}
+                    {item.isDebtRelated && (
+                      <span className="font-mono text-[10px] text-[var(--color-crimson)] border border-[var(--color-crimson)] px-1.5 py-0.5 uppercase flex-shrink-0">
+                        Debt
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                    <span className="font-mono font-bold text-[var(--color-coolwhite)]">
+                      ₹{item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteExpense(item)}
+                      title="Delete Expense"
+                      className="text-zinc-600 hover:text-[var(--color-crimson)] transition-colors sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+                
+              </div>
+              
+            )))}
           </div>
 
           <div className="p-4 flex justify-end bg-[var(--color-charcoal)]/30">
@@ -182,7 +255,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             <h3 className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-4">
               <Target className="w-4 h-4 text-[var(--color-amber)]" /> Burn Rate Analysis
             </h3>
-
+            
             <div className="mb-6">
               <div className="font-mono text-[var(--color-muted)] text-xs uppercase mb-1">Daily Safe Limit</div>
               <div className="font-sans text-2xl font-bold text-[var(--color-coolwhite)]">₹1,150 <span className="text-sm font-mono text-[var(--color-muted)] font-normal">/ day</span></div>
@@ -193,7 +266,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
                 <span className="text-[var(--color-muted)]">Monthly Burn</span>
                 <span className="text-[var(--color-amber)] font-bold">40.2% Spent</span>
               </div>
-              {/* Brutalist Progress Bar */}
               <div className="w-full h-3 bg-[var(--color-charcoal)] border border-zinc-700">
                 <div className="h-full bg-[var(--color-amber)] w-[40.2%]"></div>
               </div>
@@ -202,7 +274,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
 
           {/* 4. Top Drain & Pending Debts Alert */}
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-5 shadow-[var(--shadow-brutal)] flex flex-col gap-5">
-
+            
             <div className="border-b border-zinc-800 pb-4">
               <div className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-2">
                 <Flame className="w-4 h-4 text-[var(--color-crimson)]" /> Top Drain
@@ -213,6 +285,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             </div>
 
             <div>
+
               <div className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-3">
                 <AlertTriangle className="w-4 h-4 text-[var(--color-amber)]" /> Debt Action
               </div>

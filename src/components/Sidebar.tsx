@@ -20,19 +20,18 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* 1. MOBILE FLOATING WIDGET: अब स्क्रॉल करने पर ऊपर-नीचे नहीं हिलेगा */}
-{isCollapsed && (
-  <button
-    onClick={() => setIsCollapsed(false)}
-    title="Open Menu"
-    className="md:hidden fixed left-0 top-[42dvh] z-40 bg-[var(--color-amber)] text-[var(--color-vanta)] border-y-2 border-r-2 border-[var(--color-vanta)] py-3 px-2 shadow-[3px_3px_0px_0px_var(--color-vanta)] active:translate-x-[1px]"
-  >
-    <PanelLeftOpen className="w-5 h-5 stroke-[2.5]" />
-  </button>
-)}
+      {/* 1. Mobile Floating Widget */}
+      {isCollapsed && (
+        <button
+          onClick={() => setIsCollapsed(false)}
+          title="Open Menu"
+          className="md:hidden fixed left-0 top-[42dvh] z-40 bg-[var(--color-amber)] text-[var(--color-vanta)] border-y-2 border-r-2 border-[var(--color-vanta)] py-3 px-2 shadow-[3px_3px_0px_0px_var(--color-vanta)] active:translate-x-[1px]"
+        >
+          <PanelLeftOpen className="w-5 h-5 stroke-[2.5]" />
+        </button>
+      )}
 
-
-      {/* 2. OVERLAY BACKDROP */}
+      {/* 2. Overlay Backdrop */}
       {!isCollapsed && (
         <div 
           onClick={() => setIsCollapsed(true)}
@@ -40,7 +39,7 @@ export default function Sidebar() {
         />
       )}
 
-      {/* 3. MAIN SIDEBAR ASIDE */}
+      {/* 3. Main Sidebar Aside */}
       <aside 
         className={`h-screen bg-[var(--color-coolwhite)] border-r-2 border-[var(--color-charcoal)] flex flex-col fixed left-0 top-0 z-50 transition-all duration-300 ease-in-out ${
           isCollapsed 
@@ -48,31 +47,30 @@ export default function Sidebar() {
             : "translate-x-0 w-72 shadow-[6px_0px_0px_0px_var(--color-vanta)]"
         }`}
       >
-        
-        {/* Logo & Toggle Area */}
-        <div className={`mt-8 flex items-center mb-10 ${isCollapsed ? "justify-center" : "justify-between px-6"}`}>
-          <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-[var(--color-charcoal)] hover:text-[var(--color-amber)] transition-colors"
-            title={isCollapsed ? "Expand Panel" : "Collapse Panel"}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="w-6 h-6 stroke-[2.5]" />
-            ) : (
-              <h1 className="font-sans text-2xl font-bold uppercase tracking-tight text-[var(--color-vanta)] cursor-pointer">
-                AutoLedger <span className="text-[var(--color-amber)]">//</span>
-              </h1>
-            )}
-          </button>
-          
-          {!isCollapsed && (
-            <button 
-              onClick={() => setIsCollapsed(true)}
-              className="text-[var(--color-charcoal)] hover:text-[var(--color-amber)] transition-colors"
-            >
-              <PanelLeftClose className="w-6 h-6 stroke-[2.5]" />
-            </button>
+        {/* Collapse / Expand Toggle Centered Vertically on Right Border */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          title={isCollapsed ? "Expand Panel" : "Collapse Panel"}
+          className={`hidden md:flex items-center justify-center w-7 h-7 bg-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] text-[var(--color-charcoal)] hover:bg-[var(--color-amber)] hover:text-[var(--color-vanta)] transition-colors absolute -right-[15px] top-1/2 -translate-y-1/2 z-50 cursor-pointer shadow-[2px_2px_0px_0px_var(--color-vanta)] ${
+            !isCollapsed ? "!flex" : ""
+          }`}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="w-4 h-4 stroke-[2.5]" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4 stroke-[2.5]" />
           )}
+        </button>
+        
+        {/* Logo Area */}
+        <div className={`mt-8 flex items-center mb-10 ${isCollapsed ? "justify-center" : "px-6"}`}>
+          <Link href="/" onClick={() => setIsCollapsed(true)} className="flex items-center gap-3">
+            <img 
+              src="/slogo (2).svg" 
+              alt="AutoLedger Logo" 
+              className="w-13 h-13 object-contain flex-shrink-0" 
+            />
+          </Link>
         </div>
 
         {/* Navigation Sections */}
