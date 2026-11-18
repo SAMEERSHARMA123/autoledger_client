@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
 
+const devOrigins = ["localhost"];
+if (process.env.DEV_ORIGIN) {
+  devOrigins.push(process.env.DEV_ORIGIN);
+}
+
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
-  allowedDevOrigins: ["10.182.88.217", "localhost"],
+  allowedDevOrigins: devOrigins,
   turbopack: {
     rules: {
       "*.css": {
