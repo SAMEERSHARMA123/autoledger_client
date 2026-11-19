@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import LogoTransition from "@/components/LogoTransition";
+import AuthArtPanel from "@/components/AuthArtPanel";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
@@ -67,19 +68,17 @@ function AuthFormContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-coolwhite)] flex items-center justify-center p-4 sm:p-8 relative">
-      
-      {/* फुल-स्क्रीन Lottie लोगो एनिमेशन ओवरले */}
-      {showSuccessAnim && (
-        <LogoTransition onComplete={handleAnimationFinish} />
-      )}
+   <div className="min-h-screen w-full bg-[var(--color-coolwhite)] flex items-center justify-center p-4 sm:p-8">
+  {showSuccessAnim && <LogoTransition onComplete={handleAnimationFinish} />}
 
-      {/* मुख्य Brutalist लॉगिन बॉक्स */}
-      <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] w-full max-w-md p-8 shadow-[var(--shadow-brutal)]">
+  {/* बिना मोटे बॉर्डर और हार्ड शैडो के क्लीन कार्ड */}
+  <div className="w-full max-w-5xl bg-white shadow-2xl flex flex-col lg:flex-row overflow-hidden">
+    <AuthArtPanel />
+    <div className="w-full lg:w-1/2 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] p-8 sm:p-12 flex flex-col justify-center">
         
         <div className="mb-10">
           <h1 className="font-sans text-3xl font-bold uppercase tracking-tight mb-2">
-            System Login //
+            Welcome Back!
           </h1>
           <p className="font-mono text-[var(--color-muted)] text-sm">
             ENTER CREDENTIALS TO ACCESS DATABASE
@@ -129,11 +128,11 @@ function AuthFormContent() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative mt-4 flex items-center justify-center gap-2 w-full overflow-hidden bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-4 border-2 border-[var(--color-amber)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] shadow-[3px_3px_0px_0px_rgba(245,158,11,0.4),_6px_6px_0px_0px_rgba(245,158,11,0.15)] hover:shadow-[0px_0px_0px_0px_rgba(245,158,11,0)] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+            className="group relative mt-4 mx-auto flex items-center justify-center gap-2 w-full overflow-hidden bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-4 border-2 border-[var(--color-amber)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] shadow-[3px_3px_0px_0px_rgba(245,158,11,0.4),_6px_6px_0px_0px_rgba(245,158,11,0.15)] hover:shadow-[0px_0px_0px_0px_rgba(245,158,11,0)] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
           >
             <span className="absolute inset-0 block -translate-x-full skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover:translate-x-full" />
             <span className="relative z-10 flex items-center justify-center gap-2">
-              {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Authenticate"}
+              {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "SIGN IN"}
               {!loading && <ArrowRight className="h-5 w-5" />}
             </span>
           </button>
@@ -177,7 +176,7 @@ function AuthFormContent() {
             CREATE ONE
           </Link>
         </div>
-
+        </div>
       </div>
     </div>
   );
