@@ -1,8 +1,20 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/useAuthStore';
 
-// पूरी तरह .env से आने वाला API URL (लोकल टेस्टिंग के लिए fallback के साथ)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const getBaseUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  // Use live production URL from .env if it does not contain localhost
+  if (envUrl && !envUrl.includes('localhost')) {
+    return envUrl;
+  }
+  // Automatically connect to the active host IP on port 5000 during local/mobile dev
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:5000/api`;
+  }
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getBaseUrl();
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -23,7 +35,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        // अब refresh कॉल भी सीधे .env वाले URL पर ही जाएगी
         await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
         return api(originalRequest);
       } catch (refreshError) {

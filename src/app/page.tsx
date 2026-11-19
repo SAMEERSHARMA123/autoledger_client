@@ -6,6 +6,7 @@ import DashboardBanners from "@/components/DashboardBanners";
 import DashboardWidgets from "@/components/DashboardWidgets";
 import DashboardPulse from "@/components/DashboardPulse";
 import { Search, Volume2, VolumeX, ChevronDown, User, Download, LogOut } from "lucide-react";
+import VoiceExpenseButton from "@/components/VoiceExpenseButton";
 
 export default function Dashboard() {
   const [isMuted, setIsMuted] = useState(false);
@@ -106,6 +107,7 @@ export default function Dashboard() {
           <DashboardBanners />
           <DashboardWidgets /> 
           <DashboardPulse />
+          <VoiceExpenseButton/>
         </div>
 
       </main>
