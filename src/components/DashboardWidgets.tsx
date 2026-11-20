@@ -21,7 +21,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
   const recentExpenses = useExpenseStore((state) => state.recentExpenses);
   const listLoading = useExpenseStore((state) => state.isLoading);
   const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
-  const removeExpenseOptimistic = useExpenseStore((state) => state.removeExpenseOptimistic);
+  const deleteExpense = useExpenseStore((state) => state.deleteExpense);
 
   const audioRef = useRef<HTMLAudioElement | null>(
     typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
@@ -64,25 +64,19 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
   };
 
   // Delete Expense using the short confirmPopup utility
-  const handleDeleteExpense = async (item: ExpenseItem) => {
-    const confirmed = await confirmPopup(
-      `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
-      "Delete Expense"
-    );
-    if (!confirmed) return;
+ const handleDeleteExpense = async (item: ExpenseItem) => {
+  const confirmed = await confirmPopup(
+    `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
+    "Delete Expense"
+  );
+  if (!confirmed) return;
 
-    // Turant UI se remove karega (Optimistic)
-    removeExpenseOptimistic(item._id);
-
-    try {
-      await api.delete(`/expenses/${item._id}`);
-      await refreshDashboardData();
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to delete expense");
-      // Fail hone par server se wapas sync kar lega
-      await refreshDashboardData();
-    }
-  };
+  try {
+    await deleteExpense(item);
+  } catch (err: any) {
+    setError(err.response?.data?.message || "Failed to delete expense");
+  }
+};
 
   return (
     <div className="flex flex-col gap-6 mt-6 w-full">
