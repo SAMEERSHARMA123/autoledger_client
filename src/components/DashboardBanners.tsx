@@ -1,37 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { DollarSign, ArrowUpRight, ArrowDownRight, CreditCard, Loader2 } from "lucide-react";
-import { api } from "@/lib/axios";
-
-// TypeScript interface for the data we expect from your controller
-interface SummaryData {
-  netBalance: number;
-  monthlyInflow: number;
-  monthlyOutflow: number;
-  activeDebts: number;
-}
+import { useExpenseStore } from "@/store/useExpenseStore";
 
 export default function DashboardBanners() {
-  const [data, setData] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        // Automatically sends the HttpOnly token to your Express backend
-        const response = await api.get("/analytics/summary"); 
-        setData(response.data.summary);
-      } catch (err: any) {
-        setError(err.response?.data?.message || "Failed to load aggregations");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSummary();
-  }, []);
+  const summary = useExpenseStore((state) => state.summary);
+  const isLoading = useExpenseStore((state) => state.isLoading);
 
   // Helper to format currency
   const formatCurrency = (amount: number) => {
@@ -42,8 +16,8 @@ export default function DashboardBanners() {
     }).format(amount);
   };
 
-  // While waiting for the API, show the brutalist skeletons
-  if (loading) {
+  // While waiting for the store data, show the brutalist skeletons
+  if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full pr-2 pb-2">
         {[1, 2, 3, 4].map((i) => (
@@ -55,21 +29,12 @@ export default function DashboardBanners() {
     );
   }
 
-  // If the API fails
-  if (error) {
-    return (
-      <div className="w-full bg-[var(--color-vanta)] border-2 border-[var(--color-crimson)] p-4 text-[var(--color-crimson)] font-mono text-sm mb-6">
-        API ERROR: {error}
-      </div>
-    );
-  }
-
-  // Map the real data to the 4 UI Cards
+  // Map the live store data to the 4 UI Cards
   const KPI_DATA = [
     {
       id: 1,
       title: "Net Balance",
-      value: formatCurrency(data?.netBalance || 0),
+      value: formatCurrency(summary.netBalance),
       colors: "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)]",
       labelColor: "text-[var(--color-vanta)]/80",
       hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-vanta)]",
@@ -78,7 +43,7 @@ export default function DashboardBanners() {
     {
       id: 2,
       title: "Monthly Inflow",
-      value: formatCurrency(data?.monthlyInflow || 0),
+      value: formatCurrency(summary.monthlyInflow),
       colors: "bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-[var(--color-charcoal)]",
       labelColor: "text-[var(--color-muted)]",
       hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-amber)]",
@@ -87,7 +52,7 @@ export default function DashboardBanners() {
     {
       id: 3,
       title: "Monthly Outflow",
-      value: formatCurrency(data?.monthlyOutflow || 0),
+      value: formatCurrency(summary.monthlyOutflow),
       colors: "bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] border-[var(--color-charcoal)]",
       labelColor: "text-[var(--color-muted)]",
       hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-amber)]",
@@ -96,7 +61,7 @@ export default function DashboardBanners() {
     {
       id: 4,
       title: "Active Debts",
-      value: formatCurrency(data?.activeDebts || 0),
+      value: formatCurrency(summary.activeDebts),
       colors: "bg-[var(--color-coolwhite)] text-[var(--color-vanta)] border-2 border-[var(--color-charcoal)]",
       labelColor: "text-[var(--color-charcoal)]",
       hoverShadow: "hover:shadow-[6px_6px_0px_0px_var(--color-vanta)]",

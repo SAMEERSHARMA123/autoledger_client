@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Mic, Loader2, Check } from "lucide-react";
+import { Mic, Square, Loader2, Check, Sparkles } from "lucide-react";
 import { api } from "@/lib/axios";
 
 interface VoiceExpenseButtonProps {
@@ -10,29 +10,33 @@ interface VoiceExpenseButtonProps {
 }
 
 export default function VoiceExpenseButton({ isMuted = false, onSuccess }: VoiceExpenseButtonProps) {
-  const [status, setStatus] = useState<"idle" | "listening" | "processing">("idle");
-  const [transcript, setTranscript] = useState("");
+  const [status, setStatus] = useState<"idle" | "recording" | "processing">("idle");
   const [feedback, setFeedback] = useState("");
 
-  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(
     typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
   );
 
   const showTempFeedback = (msg: string) => {
     setFeedback(msg);
-    setTimeout(() => setFeedback(""), 2000);
+    setTimeout(() => setFeedback(""), 2500);
   };
 
-  const submitTranscript = async (spokenText: string) => {
-    if (!spokenText.trim()) {
-      setStatus("idle");
-      return;
-    }
-
+  const sendAudio = async (blob: Blob) => {
     setStatus("processing");
     try {
-      const { data } = await api.post("/ai/voice-expense", { transcript: spokenText });
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+        reader.readAsDataURL(blob);
+      });
+
+      const { data } = await api.post("/ai/voice-expense", {
+        audioBase64: base64,
+        mimeType: blob.type || "audio/webm",
+      });
 
       if (!isMuted && audioRef.current) {
         audioRef.current.currentTime = 0;
@@ -42,105 +46,133 @@ export default function VoiceExpenseButton({ isMuted = false, onSuccess }: Voice
       const expenses = data.expenses || [];
       if (expenses.length === 1) {
         const { amount, category } = expenses[0];
-        const formattedCat = category.charAt(0) + category.slice(1).toLowerCase();
-        showTempFeedback(`Added ₹${amount} (${formattedCat})`);
+        showTempFeedback(`Added ₹${amount} (${category})`);
       } else {
         showTempFeedback(`Added ${expenses.length} expenses`);
       }
 
       onSuccess?.();
-    } catch {
-      showTempFeedback("Could not log expense");
+    } catch (err: any) {
+      showTempFeedback(err.response?.data?.message || "Could not log expense");
     } finally {
       setStatus("idle");
-      setTranscript("");
     }
   };
 
-  const toggleListening = () => {
+  const toggleRecording = async () => {
     if (status === "processing") return;
 
-    if (status === "listening") {
-      recognitionRef.current?.stop();
-      setStatus("idle");
+    if (status === "recording") {
+      mediaRecorderRef.current?.stop();
       return;
     }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { audioBitsPerSecond: 32000 });
+      chunksRef.current = [];
 
-    if (!SpeechRecognition) {
-      showTempFeedback("Voice input not supported");
-      return;
-    }
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-IN";
-    recognition.interimResults = true;
-    recognition.continuous = false;
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        if (audioBlob.size > 0) sendAudio(audioBlob);
+        else setStatus("idle");
+      };
 
-    recognition.onstart = () => {
-      setStatus("listening");
-      setTranscript("");
+      mediaRecorderRef.current = recorder;
+      recorder.start();
       setFeedback("");
-    };
-
-    recognition.onresult = (event: any) => {
-      const current = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
-        .join("");
-
-      setTranscript(current);
-
-      if (event.results[event.results.length - 1].isFinal) {
-        recognition.stop();
-        submitTranscript(current);
-      }
-    };
-
-    recognition.onerror = () => {
-      setStatus("idle");
-      setTranscript("");
-      showTempFeedback("Voice capture failed");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
+      setStatus("recording");
+    } catch {
+      showTempFeedback("Microphone permission denied");
+    }
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
-      {/* Live Transcript Pill (Listening) */}
-      {status === "listening" && (
-        <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-crimson)] px-4 py-2 font-mono text-xs shadow-[3px_3px_0px_0px_var(--color-crimson)] max-w-xs truncate">
-          {transcript || "Listening..."}
+    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 group">
+      <style>{`
+        @keyframes ai-alive-shine {
+          0% {
+            transform: translateX(-160%) skewX(-25deg);
+          }
+          45%, 100% {
+            transform: translateX(260%) skewX(-25deg);
+          }
+        }
+      `}</style>
+
+      {/* Hover Hint */}
+      {status === "idle" && !feedback && (
+        <div className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1.5 bg-[var(--color-coolwhite)] text-[var(--color-vanta)] border-2 border-[var(--color-vanta)] px-3 py-1.5 font-mono text-xs font-bold shadow-[3px_3px_0px_0px_var(--color-vanta)]">
+          <Sparkles className="w-3.5 h-3.5 text-[var(--color-amber)]" />
+          <span>AI Voice Expense</span>
+        </div>
+      )}
+
+      {/* Recording Pill */}
+      {status === "recording" && (
+        <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-crimson)] px-4 py-2 font-mono text-xs shadow-[3px_3px_0px_0px_var(--color-crimson)]">
+          Listening... Tap to send
+        </div>
+      )}
+
+      {/* Processing Pill */}
+      {status === "processing" && (
+        <div className="flex items-center gap-2 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-muted)] px-4 py-2 font-mono text-xs shadow-[3px_3px_0px_0px_var(--color-vanta)]">
+          <Sparkles className="w-3.5 h-3.5 text-[var(--color-amber)] animate-pulse" />
+          <span>AI is logging...</span>
         </div>
       )}
 
       {/* Confirmation / Error Pill */}
       {feedback && status === "idle" && (
-        <div className="flex items-center gap-2 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] px-4 py-2 font-mono text-xs shadow-[3px_3px_0px_0px_var(--color-amber)]">
+        <div className="flex items-center gap-2 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-vanta)] px-4 py-2 font-mono text-xs shadow-[3px_3px_0px_0px_var(--color-muted)]">
           <Check className="w-4 h-4 text-[var(--color-amber)]" />
           <span>{feedback}</span>
         </div>
       )}
 
-      {/* Circular Floating Action Button */}
+      {/* Circular AI Floating Action Button */}
       <button
         type="button"
-        onClick={toggleListening}
+        onClick={toggleRecording}
         disabled={status === "processing"}
-        title="Add expense by voice"
-        className={`w-14 h-14 rounded-full flex items-center justify-center border-2 border-[var(--color-vanta)] shadow-[4px_4px_0px_0px_var(--color-vanta)] transition-all cursor-pointer hover:-translate-y-[2px] hover:-translate-x-[2px] disabled:cursor-wait ${
-          status === "listening"
-            ? "bg-[var(--color-crimson)] text-white animate-pulse"
-            : "bg-[var(--color-amber)] text-[var(--color-vanta)]"
+        title={status === "recording" ? "Stop & log expense" : "Add expense with AI Voice"}
+        className={`relative w-16 h-16 rounded-full flex items-center justify-center border-2 border-[var(--color-vanta)] shadow-[4px_4px_0px_0px_var(--color-vanta)] transition-all cursor-pointer hover:-translate-y-[2px] hover:-translate-x-[2px] disabled:cursor-wait ${
+          status === "recording"
+            ? "bg-[var(--color-crimson)] text-[var(--color-coolwhite)] animate-pulse"
+            : "bg-[var(--color-muted)] text-[var(--color-coolwhite)] hover:bg-[var(--color-charcoal)]"
         }`}
       >
+        {/* Always-on Sweeping Shine */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-full overflow-hidden"
+        >
+          <span
+            style={{ animation: "ai-alive-shine 3s ease-in-out infinite" }}
+            className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/35 to-transparent"
+          />
+        </span>
+
+        {/* Sharp AI Identity Badge */}
+        {status !== "recording" && (
+          <span className="absolute -top-1 -right-1 z-10 flex items-center gap-0.5 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] font-mono text-[9px] font-bold uppercase px-1.5 py-0.5 border border-[var(--color-coolwhite)] leading-none">
+            <Sparkles className="w-2.5 h-2.5 text-[var(--color-amber)]" />
+            AI
+          </span>
+        )}
+
         {status === "processing" ? (
-          <Loader2 className="w-6 h-6 animate-spin" />
+          <Loader2 className="relative z-10 w-7 h-7 text-[var(--color-coolwhite)] animate-spin" />
+        ) : status === "recording" ? (
+          <Square className="relative z-10 w-5 h-5 fill-current" />
         ) : (
-          <Mic className="w-6 h-6 stroke-[2.5]" />
+          <Mic className="relative z-10 w-7 h-7 stroke-[2.2]" />
         )}
       </button>
     </div>

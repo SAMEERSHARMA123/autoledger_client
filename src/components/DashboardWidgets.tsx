@@ -1,21 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Plus, Trash2, ArrowRight, AlertTriangle, Flame, Target, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
-
-interface ExpenseItem {
-  _id: string;
-  amount: number;
-  type: string;
-  category: string;
-  paymentMethod: string;
-  notes?: string;
-  isDebtRelated?: boolean;
-  date: string;
-}
+import { useExpenseStore, ExpenseItem } from "@/store/useExpenseStore";
 
 export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolean }) {
   const [amount, setAmount] = useState("");
@@ -25,29 +15,17 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
   const [isDebt, setIsDebt] = useState(false);
 
   const [loading, setLoading] = useState(false);
-  const [listLoading, setListLoading] = useState(true);
-  const [recentExpenses, setRecentExpenses] = useState<ExpenseItem[]>([]);
   const [error, setError] = useState("");
+
+  // Zustand Store state & actions
+  const recentExpenses = useExpenseStore((state) => state.recentExpenses);
+  const listLoading = useExpenseStore((state) => state.isLoading);
+  const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
+  const removeExpenseOptimistic = useExpenseStore((state) => state.removeExpenseOptimistic);
 
   const audioRef = useRef<HTMLAudioElement | null>(
     typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
   );
-
-  // Fetch Latest 6 Paginated Expenses
-  const fetchRecentExpenses = async () => {
-    try {
-      const { data } = await api.get("/expenses?page=1&limit=6");
-      setRecentExpenses(data.data || []);
-    } catch (err) {
-      console.error("Failed to fetch expenses:", err);
-    } finally {
-      setListLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRecentExpenses();
-  }, []);
 
   // Add New Expense
   const handleLogExpense = async (e: React.FormEvent) => {
@@ -76,7 +54,8 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
       setNote("");
       setIsDebt(false);
 
-      await fetchRecentExpenses();
+      // Banners + Recent Activity dono ek sath update honge
+      await refreshDashboardData();
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to log expense");
     } finally {
@@ -92,12 +71,16 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
     );
     if (!confirmed) return;
 
+    // Turant UI se remove karega (Optimistic)
+    removeExpenseOptimistic(item._id);
+
     try {
       await api.delete(`/expenses/${item._id}`);
-      setRecentExpenses((prev) => prev.filter((exp) => exp._id !== item._id));
-      fetchRecentExpenses();
+      await refreshDashboardData();
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to delete expense");
+      // Fail hone par server se wapas sync kar lega
+      await refreshDashboardData();
     }
   };
 
@@ -187,7 +170,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">
               Recent Activity //
             </h2>
-            
           </div>
 
           <div className="flex flex-col flex-1">
@@ -231,11 +213,10 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                  </div>
                 </div>
-                
-              </div>
-              
-            )))}
+              ))
+            )}
           </div>
 
           <div className="p-4 flex justify-end bg-[var(--color-charcoal)]/30">
@@ -285,7 +266,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             </div>
 
             <div>
-
               <div className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-3">
                 <AlertTriangle className="w-4 h-4 text-[var(--color-amber)]" /> Debt Action
               </div>

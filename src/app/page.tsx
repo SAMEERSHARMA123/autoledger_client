@@ -1,16 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import DashboardBanners from "@/components/DashboardBanners";
 import DashboardWidgets from "@/components/DashboardWidgets";
 import DashboardPulse from "@/components/DashboardPulse";
 import { Search, Volume2, VolumeX, ChevronDown, User, Download, LogOut } from "lucide-react";
 import VoiceExpenseButton from "@/components/VoiceExpenseButton";
+import { useExpenseStore } from "@/store/useExpenseStore";
 
 export default function Dashboard() {
   const [isMuted, setIsMuted] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
+
+  useEffect(() => {
+    refreshDashboardData();
+  }, [refreshDashboardData]);
 
   return (
     <div className="min-h-screen bg-[var(--color-coolwhite)]">
@@ -105,9 +112,9 @@ export default function Dashboard() {
         {/* Main Dashboard Content Area */}
         <div className="pl-4">
           <DashboardBanners />
-          <DashboardWidgets /> 
+          <DashboardWidgets isMuted={isMuted} /> 
           <DashboardPulse />
-          <VoiceExpenseButton/>
+          <VoiceExpenseButton isMuted={isMuted} onSuccess={refreshDashboardData} />
         </div>
 
       </main>

@@ -103,7 +103,7 @@ function AuthFormContent() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 pl-10 pr-4 focus:outline-none focus:border-[var(--color-amber)] transition-colors rounded-none"
-                placeholder="admin@autoledger.com"
+                placeholder="rahul@autoledger.com"
               />
             </div>
           </div>
