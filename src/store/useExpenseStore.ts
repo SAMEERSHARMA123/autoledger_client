@@ -20,9 +20,18 @@ export interface DashboardSummary {
   categoryBreakdown: { _id: string; amount: number }[];
 }
 
+export interface DashboardInsights {
+  burnRate: { dailySafeLimit: number; monthlyBurnPercent: number };
+  topDrain: { category: string; amount: number; percentage: number };
+  pendingDebtsCount: number;
+  sevenDayPulse: { date: string; day: string; amount: number; isHighest: boolean }[];
+  categorySplit: { category: string; amount: number; percentage: number }[];
+}
+
 interface ExpenseState {
   recentExpenses: ExpenseItem[];
   summary: DashboardSummary;
+  insights: DashboardInsights;
   isLoading: boolean;
   refreshDashboardData: () => Promise<void>;
   deleteExpense: (item: ExpenseItem) => Promise<void>;
@@ -36,11 +45,20 @@ const DEFAULT_SUMMARY: DashboardSummary = {
   categoryBreakdown: [],
 };
 
+const DEFAULT_INSIGHTS: DashboardInsights = {
+  burnRate: { dailySafeLimit: 0, monthlyBurnPercent: 0 },
+  topDrain: { category: 'NONE', amount: 0, percentage: 0 },
+  pendingDebtsCount: 0,
+  sevenDayPulse: [],
+  categorySplit: [],
+};
+
 let isFetching = false;
 
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   recentExpenses: [],
   summary: DEFAULT_SUMMARY,
+  insights: DEFAULT_INSIGHTS,
   isLoading: true,
 
   refreshDashboardData: async () => {
@@ -48,14 +66,16 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     isFetching = true;
 
     try {
-      const [expensesRes, summaryRes] = await Promise.all([
+      const [expensesRes, summaryRes, insightsRes] = await Promise.all([
         api.get('/expenses?page=1&limit=6'),
         api.get('/analytics/summary'),
+        api.get('/analytics/insights'),
       ]);
 
       set({
         recentExpenses: expensesRes.data.data || [],
         summary: summaryRes.data.summary || DEFAULT_SUMMARY,
+        insights: insightsRes.data.insights || DEFAULT_INSIGHTS,
       });
     } catch (error) {
       console.error('Failed to refresh dashboard data:', error);
@@ -65,7 +85,6 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     }
   },
 
-  // List + Summary dono ko turant update karega, bina dobara GET API call kiye
   deleteExpense: async (item) => {
     const prevExpenses = get().recentExpenses;
     const prevSummary = get().summary;

@@ -7,7 +7,7 @@ import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
 import { useExpenseStore, ExpenseItem } from "@/store/useExpenseStore";
 
-export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolean }) {
+export default function DashboardWidgets() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("FOOD");
   const [mode, setMode] = useState("UPI");
@@ -17,8 +17,8 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Zustand Store state & actions
   const recentExpenses = useExpenseStore((state) => state.recentExpenses);
+  const insights = useExpenseStore((state) => state.insights);
   const listLoading = useExpenseStore((state) => state.isLoading);
   const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
   const deleteExpense = useExpenseStore((state) => state.deleteExpense);
@@ -27,7 +27,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
     typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
   );
 
-  // Add New Expense
   const handleLogExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
@@ -45,7 +44,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
         isDebtRelated: isDebt,
       });
 
-      if (!isMuted && audioRef.current) {
+      if (audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => {});
       }
@@ -54,7 +53,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
       setNote("");
       setIsDebt(false);
 
-      // Banners + Recent Activity dono ek sath update honge
       await refreshDashboardData();
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to log expense");
@@ -63,27 +61,24 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
     }
   };
 
-  // Delete Expense using the short confirmPopup utility
- const handleDeleteExpense = async (item: ExpenseItem) => {
-  const confirmed = await confirmPopup(
-    `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
-    "Delete Expense"
-  );
-  if (!confirmed) return;
+  const handleDeleteExpense = async (item: ExpenseItem) => {
+    const confirmed = await confirmPopup(
+      `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
+      "Delete Expense"
+    );
+    if (!confirmed) return;
 
-  try {
-    await deleteExpense(item);
-  } catch (err: any) {
-    setError(err.response?.data?.message || "Failed to delete expense");
-  }
-};
+    try {
+      await deleteExpense(item);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to delete expense");
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 mt-6 w-full">
 
-      {/* =========================================
-          1. QUICK MANUAL ENTRY BAR (Full Width)
-      ========================================= */}
+      {/* 1. QUICK MANUAL ENTRY BAR */}
       <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-4 shadow-[var(--shadow-brutal)]">
         {error && (
           <div className="text-[var(--color-crimson)] font-mono text-xs mb-3">
@@ -91,7 +86,6 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
           </div>
         )}
         <form className="flex flex-col md:flex-row items-center gap-3 w-full" onSubmit={handleLogExpense}>
-
           <div className="relative w-full md:w-32 flex-shrink-0">
             <span className="absolute left-3 top-3 font-mono text-[var(--color-muted)]">₹</span>
             <input
@@ -156,9 +150,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* =========================================
-            2. RECENT ACTIVITY (Latest 6 Paginated)
-        ========================================= */}
+        {/* 2. RECENT ACTIVITY */}
         <div className="lg:col-span-2 bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] flex flex-col shadow-[var(--shadow-brutal)]">
           <div className="p-5 border-b border-zinc-800 flex justify-between items-center">
             <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">
@@ -220,9 +212,7 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
           </div>
         </div>
 
-        {/* =========================================
-            RIGHT COLUMN: ANALYTICS & ALERTS (40%)
-        ========================================= */}
+        {/* RIGHT COLUMN: ANALYTICS & ALERTS */}
         <div className="lg:col-span-1 flex flex-col gap-6">
 
           {/* 3. Safe-To-Spend & Burn Rate */}
@@ -230,32 +220,43 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
             <h3 className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-4">
               <Target className="w-4 h-4 text-[var(--color-amber)]" /> Burn Rate Analysis
             </h3>
-            
+
             <div className="mb-6">
               <div className="font-mono text-[var(--color-muted)] text-xs uppercase mb-1">Daily Safe Limit</div>
-              <div className="font-sans text-2xl font-bold text-[var(--color-coolwhite)]">₹1,150 <span className="text-sm font-mono text-[var(--color-muted)] font-normal">/ day</span></div>
+              <div className="font-sans text-2xl font-bold text-[var(--color-coolwhite)]">
+                ₹{insights.burnRate.dailySafeLimit.toLocaleString("en-IN")}{" "}
+                <span className="text-sm font-mono text-[var(--color-muted)] font-normal">/ day</span>
+              </div>
             </div>
 
             <div>
               <div className="flex justify-between font-mono text-xs uppercase mb-2">
                 <span className="text-[var(--color-muted)]">Monthly Burn</span>
-                <span className="text-[var(--color-amber)] font-bold">40.2% Spent</span>
+                <span className="text-[var(--color-amber)] font-bold">
+                  {insights.burnRate.monthlyBurnPercent}% Spent
+                </span>
               </div>
               <div className="w-full h-3 bg-[var(--color-charcoal)] border border-zinc-700">
-                <div className="h-full bg-[var(--color-amber)] w-[40.2%]"></div>
+                <div
+                  className="h-full bg-[var(--color-amber)] transition-all duration-500"
+                  style={{ width: `${insights.burnRate.monthlyBurnPercent}%` }}
+                />
               </div>
             </div>
           </div>
 
           {/* 4. Top Drain & Pending Debts Alert */}
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-5 shadow-[var(--shadow-brutal)] flex flex-col gap-5">
-            
             <div className="border-b border-zinc-800 pb-4">
               <div className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-2">
                 <Flame className="w-4 h-4 text-[var(--color-crimson)]" /> Top Drain
               </div>
               <div className="font-mono text-sm text-[var(--color-coolwhite)]">
-                Highest Drain: <span className="text-[var(--color-crimson)] font-bold">FOOD</span> (42% of total)
+                Highest Drain:{" "}
+                <span className="text-[var(--color-crimson)] font-bold uppercase">
+                  {insights.topDrain.category}
+                </span>{" "}
+                ({insights.topDrain.percentage}% of total)
               </div>
             </div>
 
@@ -264,14 +265,20 @@ export default function DashboardWidgets({ isMuted = false }: { isMuted?: boolea
                 <AlertTriangle className="w-4 h-4 text-[var(--color-amber)]" /> Debt Action
               </div>
               <div className="flex items-center justify-between">
-                <span className="font-mono text-sm text-[var(--color-coolwhite)]">2 Pending Settlements</span>
-                <button className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-sans font-bold text-xs uppercase px-3 py-1.5 border border-zinc-700 hover:border-[var(--color-amber)] transition-colors">
+                <span className="font-mono text-sm text-[var(--color-coolwhite)]">
+                  {insights.pendingDebtsCount} Pending{" "}
+                  {insights.pendingDebtsCount === 1 ? "Settlement" : "Settlements"}
+                </span>
+                <Link
+                  href="/debts"
+                  className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-sans font-bold text-xs uppercase px-3 py-1.5 border border-zinc-700 hover:border-[var(--color-amber)] transition-colors"
+                >
                   Settle
-                </button>
+                </Link>
               </div>
             </div>
-
           </div>
+
         </div>
       </div>
     </div>

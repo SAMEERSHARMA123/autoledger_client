@@ -1,412 +1,589 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
-import { Search, Plus, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, History, IndianRupee } from "lucide-react";
+import { api } from "@/lib/axios";
+import { confirmPopup } from "@/lib/confirmPopup";
+import { useExpenseStore } from "@/store/useExpenseStore";
+import {
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  CheckCircle2,
+  History,
+  IndianRupee,
+  Loader2,
+} from "lucide-react";
 
-// Preloaded Realistic Data (Grouped by Person)
-const INITIAL_PEOPLE = [
-  {
-    id: "p1",
-    name: "Rahul Sharma",
-    type: "RECEIVE", // You lent them money
-    totalPending: 1250,
-    entries: [
-      { id: "e1", date: "2026-11-10", note: "Dinner Split at BBQ Nation", amount: 800, isOverdue: true },
-      { id: "e2", date: "2026-11-12", note: "Movie Tickets", amount: 450, isOverdue: false },
-    ]
-  },
-  {
-    id: "p2",
-    name: "Amit Verma",
-    type: "RECEIVE",
-    totalPending: 3500,
-    entries: [
-      { id: "e3", date: "2026-11-01", note: "Emergency Cash Transfer", amount: 3500, isOverdue: true },
-    ]
-  },
-  {
-    id: "p3",
-    name: "Sneha Kapoor",
-    type: "PAY", // You borrowed money from them
-    totalPending: 1500,
-    entries: [
-      { id: "e4", date: "2026-11-05", note: "Paid for my Uber", amount: 500, isOverdue: false },
-      { id: "e5", date: "2026-11-08", note: "Concert Ticket Advance", amount: 1000, isOverdue: false },
-    ]
-  }
-];
+interface DebtEntry {
+  _id: string;
+  date: string;
+  note: string;
+  amount: number;
+  isOverdue?: boolean;
+}
+
+interface DebtPerson {
+  _id: string;
+  personName: string;
+  type: "LENT" | "BORROWED";
+  totalAmount: number;
+  activeCount: number;
+  entries: DebtEntry[];
+}
+
+interface SettledItem {
+  _id: string;
+  personName: string;
+  note: string;
+  amount: number;
+  settledAt: string;
+}
+
+interface PersonCardProps {
+  person: DebtPerson;
+  isExpanded: boolean;
+  activePartialEntry: string | null;
+  partialAmount: string;
+  onToggleExpand: (id: string) => void;
+  onStartPartial: (entryId: string) => void;
+  onCancelPartial: () => void;
+  onChangePartialAmount: (val: string) => void;
+  onPartialPay: (accountId: string, entry: DebtEntry) => void;
+  onSettleFull: (person: DebtPerson) => void;
+}
+
+const formatShortDate = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+
+function PersonCard({
+  person,
+  isExpanded,
+  activePartialEntry,
+  partialAmount,
+  onToggleExpand,
+  onStartPartial,
+  onCancelPartial,
+  onChangePartialAmount,
+  onPartialPay,
+  onSettleFull,
+}: PersonCardProps) {
+  const firstEntry = person.entries[0];
+  const isPaying = Boolean(firstEntry && activePartialEntry === firstEntry._id);
+
+  return (
+    <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[var(--shadow-brutal)] flex flex-col mb-4 rounded-none">
+      <div
+        className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--color-charcoal)] transition-colors border-b border-zinc-800/50"
+        onClick={() => onToggleExpand(person._id)}
+      >
+        <div>
+          <h3 className="font-sans font-bold text-lg text-[var(--color-coolwhite)] uppercase">
+            {person.personName}
+          </h3>
+          <span className="font-mono text-xs text-[var(--color-muted)]">
+            {person.activeCount} active {person.activeCount === 1 ? "entry" : "entries"}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span
+            className={`font-mono text-xl font-bold ${
+              person.type === "LENT" ? "text-[#21A366]" : "text-[var(--color-crimson)]"
+            }`}
+          >
+            ₹{person.totalAmount.toLocaleString("en-IN")}
+          </span>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-[var(--color-muted)]" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-[var(--color-muted)]" />
+          )}
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="p-4 bg-[#0F0F0F] flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <span className="font-mono text-xs uppercase text-[var(--color-muted)] tracking-widest border-b border-zinc-800 pb-2">
+              Breakdown
+            </span>
+            {person.entries.map((entry) => (
+              <div key={entry._id} className="flex justify-between items-start py-2">
+                <div className="flex flex-col">
+                  <span className="font-mono text-xs text-[var(--color-muted)]">
+                    {formatShortDate(entry.date)}
+                  </span>
+                  <span className="font-sans text-sm text-[var(--color-coolwhite)]">
+                    {entry.note}
+                  </span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="font-mono text-sm font-bold text-[var(--color-coolwhite)]">
+                    ₹{entry.amount.toLocaleString("en-IN")}
+                  </span>
+                  {entry.isOverdue && (
+                    <span className="flex items-center gap-1 text-[var(--color-crimson)] font-mono text-[10px] uppercase mt-1">
+                      <AlertCircle className="w-3 h-3" /> Overdue
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800">
+            {isPaying && firstEntry ? (
+              <div className="flex items-center gap-2 w-full">
+                <div className="relative flex-1">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-muted)]" />
+                  <input
+                    type="number"
+                    min={1}
+                    max={firstEntry.amount}
+                    placeholder={`Max ₹${firstEntry.amount}`}
+                    value={partialAmount}
+                    onChange={(e) => onChangePartialAmount(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[var(--color-charcoal)] border border-zinc-700 text-[var(--color-coolwhite)] font-mono py-2 pl-9 pr-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onPartialPay(person._id, firstEntry)}
+                  className="bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold text-xs uppercase px-4 py-2 border-2 border-[var(--color-amber)] hover:-translate-y-[1px] hover:-translate-x-[1px] shadow-[2px_2px_0px_0px_var(--color-vanta)] transition-all cursor-pointer"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelPartial}
+                  className="text-[var(--color-muted)] font-sans font-bold text-xs uppercase px-3 py-2 hover:text-[var(--color-coolwhite)] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (firstEntry) onStartPartial(firstEntry._id);
+                  }}
+                  className="flex-1 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold text-xs uppercase py-2 border border-zinc-700 hover:border-[var(--color-amber)] transition-colors cursor-pointer"
+                >
+                  Partial Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSettleFull(person)}
+                  className="flex items-center justify-center gap-2 flex-1 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] font-sans font-bold text-xs uppercase py-2 border border-zinc-700 hover:border-[#21A366] hover:text-[#21A366] transition-colors cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Settle Full
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DebtsPage() {
-  // State
-  const [people, setPeople] = useState(INITIAL_PEOPLE);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCards, setExpandedCards] = useState<string[]>(["p1"]); // Rahul expanded by default
+  const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
+
+  const [toReceiveList, setToReceiveList] = useState<DebtPerson[]>([]);
+  const [toPayList, setToPayList] = useState<DebtPerson[]>([]);
+  const [settledHistory, setSettledHistory] = useState<SettledItem[]>([]);
+  const [banners, setBanners] = useState({
+    toReceive: 0,
+    toReceivePeople: 0,
+    toPay: 0,
+    toPayPeople: 0,
+    netBalance: 0,
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const [expandedCards, setExpandedCards] = useState<string[]>([]);
   const [showSettled, setShowSettled] = useState(false);
-  
-  // New Debt Form State
-  const [debtType, setDebtType] = useState<"RECEIVE" | "PAY">("RECEIVE");
+
+  const [debtType, setDebtType] = useState<"LENT" | "BORROWED">("LENT");
   const [personName, setPersonName] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [dueDate, setDueDate] = useState("");
 
-  // Partial Payment UI State: Tracks which person's partial pay input is open
-  const [activePartialPay, setActivePartialPay] = useState<string | null>(null);
+  const [activePartialEntry, setActivePartialEntry] = useState<string | null>(null);
   const [partialAmount, setPartialAmount] = useState("");
 
-  // Derived Metrics
-  const filteredPeople = people.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) && p.totalPending > 0);
-  const toReceivePeople = filteredPeople.filter(p => p.type === "RECEIVE");
-  const toPayPeople = filteredPeople.filter(p => p.type === "PAY");
+  const syncFromResponse = useCallback((data: any) => {
+    setToReceiveList(data.toReceiveList || []);
+    setToPayList(data.toPayList || []);
+    setSettledHistory(data.settledHistory || []);
+    if (data.banners) setBanners(data.banners);
+  }, []);
 
-  const totalToReceive = toReceivePeople.reduce((sum, p) => sum + p.totalPending, 0);
-  const totalToPay = toPayPeople.reduce((sum, p) => sum + p.totalPending, 0);
-  const netBalance = totalToReceive - totalToPay;
+  const fetchDebts = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await api.get("/debts");
+      syncFromResponse(data);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to load debts");
+    } finally {
+      setLoading(false);
+    }
+  }, [syncFromResponse]);
 
-  // Handlers
+  useEffect(() => {
+    fetchDebts();
+  }, [fetchDebts]);
+
   const toggleExpand = (id: string) => {
-    setExpandedCards(prev => prev.includes(id) ? prev.filter(cardId => cardId !== id) : [...prev, id]);
+    setExpandedCards((prev) =>
+      prev.includes(id) ? prev.filter((cardId) => cardId !== id) : [...prev, id]
+    );
   };
 
-  const handleSettleFull = (id: string) => {
-    setPeople(prev => prev.map(p => p.id === id ? { ...p, totalPending: 0 } : p));
-  };
+  const handleAddDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personName.trim() || !amount || Number(amount) <= 0) return;
 
-  const handlePartialPay = (id: string) => {
-    const payAmt = Number(partialAmount);
-    if (payAmt > 0) {
-      setPeople(prev => prev.map(p => {
-        if (p.id === id) {
-          const newPending = Math.max(0, p.totalPending - payAmt);
-          return { ...p, totalPending: newPending };
-        }
-        return p;
-      }));
-      setActivePartialPay(null);
-      setPartialAmount("");
+    setSubmitting(true);
+    setError("");
+    try {
+      const { data } = await api.post("/debts", {
+        personName: personName.trim(),
+        type: debtType,
+        amount: Number(amount),
+        note: note.trim(),
+        date: dueDate || undefined,
+      });
+
+      syncFromResponse(data);
+      if (data.account?._id) {
+        setExpandedCards((prev) =>
+          prev.includes(data.account._id) ? prev : [...prev, data.account._id]
+        );
+      }
+
+      setPersonName("");
+      setAmount("");
+      setNote("");
+      setDueDate("");
+      refreshDashboardData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to add record");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleAddDebt = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!personName || !amount) return;
-    
-    // In a real app, this would merge with existing person or create new.
-    // For UI demo, we reset the form.
-    setPersonName("");
-    setAmount("");
-    setNote("");
-    setDueDate("");
+  const handlePartialPay = async (accountId: string, entry: DebtEntry) => {
+    const payAmt = Number(partialAmount);
+    if (!payAmt || payAmt <= 0 || payAmt > entry.amount) return;
+
+    setError("");
+    try {
+      const { data } = await api.patch(
+        `/debts/${accountId}/entries/${entry._id}/partial`,
+        { amount: payAmt }
+      );
+      syncFromResponse(data);
+      setActivePartialEntry(null);
+      setPartialAmount("");
+      refreshDashboardData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Partial payment failed");
+    }
   };
 
-  // Reusable Component for a Person Card
-  const PersonCard = ({ person }: { person: typeof INITIAL_PEOPLE[0] }) => {
-    const isExpanded = expandedCards.includes(person.id);
-    const isPaying = activePartialPay === person.id;
-
-    return (
-      <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[var(--shadow-brutal)] flex flex-col mb-4 rounded-none">
-        
-        {/* Card Header (Clickable) */}
-        <div 
-          className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--color-charcoal)] transition-colors border-b border-zinc-800/50"
-          onClick={() => toggleExpand(person.id)}
-        >
-          <div>
-            <h3 className="font-sans font-bold text-lg text-[var(--color-coolwhite)] uppercase">{person.name}</h3>
-            <span className="font-mono text-xs text-[var(--color-muted)]">{person.entries.length} active entries</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className={`font-mono text-xl font-bold ${person.type === "RECEIVE" ? "text-[#21A366]" : "text-[var(--color-crimson)]"}`}>
-              ₹{person.totalPending.toLocaleString()}
-            </span>
-            {isExpanded ? <ChevronUp className="w-5 h-5 text-[var(--color-muted)]" /> : <ChevronDown className="w-5 h-5 text-[var(--color-muted)]" />}
-          </div>
-        </div>
-
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className="p-4 bg-[#0F0F0F] flex flex-col gap-4">
-            
-            {/* Breakdown List */}
-            <div className="flex flex-col gap-2">
-              <span className="font-mono text-xs uppercase text-[var(--color-muted)] tracking-widest border-b border-zinc-800 pb-2">Breakdown</span>
-              {person.entries.map(entry => (
-                <div key={entry.id} className="flex justify-between items-start py-2">
-                  <div className="flex flex-col">
-                    <span className="font-mono text-xs text-[var(--color-muted)]">{entry.date}</span>
-                    <span className="font-sans text-sm text-[var(--color-coolwhite)]">{entry.note}</span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-mono text-sm font-bold text-[var(--color-coolwhite)]">₹{entry.amount}</span>
-                    {entry.isOverdue && (
-                      <span className="flex items-center gap-1 text-[var(--color-crimson)] font-mono text-[10px] uppercase mt-1">
-                        <AlertCircle className="w-3 h-3" /> Overdue
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Actions Footer */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800">
-              
-              {/* Inline Partial Payment Form */}
-              {isPaying ? (
-                <div className="flex items-center gap-2 w-full">
-                  <div className="relative flex-1">
-                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-muted)]" />
-                    <input 
-                      type="number" 
-                      placeholder="Amount..." 
-                      value={partialAmount}
-                      onChange={(e) => setPartialAmount(e.target.value)}
-                      className="w-full bg-[var(--color-charcoal)] border border-zinc-700 text-[var(--color-coolwhite)] font-mono py-2 pl-9 pr-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none text-sm"
-                    />
-                  </div>
-                  <button 
-                    onClick={() => handlePartialPay(person.id)}
-                    className="bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold text-xs uppercase px-4 py-2 border-2 border-[var(--color-amber)] hover:-translate-y-[1px] hover:-translate-x-[1px] shadow-[2px_2px_0px_0px_var(--color-vanta)] transition-all"
-                  >
-                    Save
-                  </button>
-                  <button 
-                    onClick={() => { setActivePartialPay(null); setPartialAmount(""); }}
-                    className="text-[var(--color-muted)] font-sans font-bold text-xs uppercase px-3 py-2 hover:text-[var(--color-coolwhite)] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center gap-4">
-                  <button 
-                    onClick={() => setActivePartialPay(person.id)}
-                    className="flex-1 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold text-xs uppercase py-2 border border-zinc-700 hover:border-[var(--color-amber)] transition-colors"
-                  >
-                    Partial Payment
-                  </button>
-                  <button 
-                    onClick={() => handleSettleFull(person.id)}
-                    className="flex items-center justify-center gap-2 flex-1 bg-[var(--color-vanta)] text-[var(--color-coolwhite)] font-sans font-bold text-xs uppercase py-2 border border-zinc-700 hover:border-[#21A366] hover:text-[#21A366] transition-colors"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Settle Full
-                  </button>
-                </div>
-              )}
-            </div>
-            
-          </div>
-        )}
-      </div>
+  const handleSettleFull = async (person: DebtPerson) => {
+    const confirmed = await confirmPopup(
+      `Settle full ₹${person.totalAmount.toLocaleString("en-IN")} with ${person.personName}?`,
+      "Settle Full"
     );
+    if (!confirmed) return;
+
+    setError("");
+    try {
+      const { data } = await api.patch(`/debts/${person._id}/settle`);
+      syncFromResponse(data);
+      setActivePartialEntry(null);
+      refreshDashboardData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to settle");
+    }
   };
+
+  const allPersonNames = Array.from(
+    new Set([...toReceiveList, ...toPayList].map((p) => p.personName))
+  );
 
   return (
     <div className="min-h-screen bg-[var(--color-coolwhite)]">
       <Sidebar />
       <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-6 pb-12 lg:pr-10">
-        
-        {/* =========================================
-            1. INLINE PAGE HEADER & FILTER
-        ========================================= */}
-        <header className="mb-8 pl-4 pr-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div>
-            <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
-              Debts & Settlements //
-            </h1>
-            <p className="font-mono text-sm text-[var(--color-muted)] mt-1 uppercase">
-              Track lent & borrowed money by person
-            </p>
-          </div>
-
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-muted)]" />
-            <input 
-              type="text" 
-              placeholder="Search person..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-mono py-2 pl-9 pr-3 focus:outline-none focus:border-[var(--color-amber)] shadow-[3px_3px_0px_0px_var(--color-amber)] rounded-none text-sm"
-            />
-          </div>
+        <header className="mb-8 pl-4 pr-2">
+          <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
+            Debts & Settlements //
+          </h1>
+          <p className="font-mono text-sm text-[var(--color-muted)] mt-1 uppercase">
+            Track lent & borrowed money by person
+          </p>
         </header>
 
-        {/* =========================================
-            2. TOP DEBT SUMMARY STRIP
-        ========================================= */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-4 mb-8">
-          {/* To Receive */}
           <div className="bg-[var(--color-amber)] text-[var(--color-vanta)] border-2 border-[var(--color-vanta)] p-5 shadow-[4px_4px_0px_0px_var(--color-vanta)] rounded-none">
             <h3 className="font-mono text-xs uppercase text-[var(--color-vanta)]/80 mb-2 flex justify-between">
-              To Receive <span>({toReceivePeople.length} people)</span>
+              To Receive <span>({banners.toReceivePeople} people)</span>
             </h3>
-            <div className="font-sans text-3xl font-bold tracking-tight">₹{totalToReceive.toLocaleString()}</div>
-          </div>
-          
-          {/* To Pay */}
-          <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] p-5 shadow-[4px_4px_0px_0px_var(--color-amber)] rounded-none">
-            <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2 flex justify-between">
-              To Pay <span>({toPayPeople.length} people)</span>
-            </h3>
-            <div className="font-sans text-3xl font-bold tracking-tight">₹{totalToPay.toLocaleString()}</div>
+            <div className="font-sans text-3xl font-bold tracking-tight">
+              ₹{banners.toReceive.toLocaleString("en-IN")}
+            </div>
           </div>
 
-          {/* Net Balance */}
+          <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] p-5 shadow-[4px_4px_0px_0px_var(--color-amber)] rounded-none">
+            <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2 flex justify-between">
+              To Pay <span>({banners.toPayPeople} people)</span>
+            </h3>
+            <div className="font-sans text-3xl font-bold tracking-tight">
+              ₹{banners.toPay.toLocaleString("en-IN")}
+            </div>
+          </div>
+
           <div className="bg-[var(--color-coolwhite)] text-[var(--color-vanta)] border-2 border-[var(--color-vanta)] p-5 shadow-[4px_4px_0px_0px_var(--color-charcoal)] rounded-none">
-            <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2">Net Balance</h3>
-            <div className={`font-sans text-3xl font-bold tracking-tight ${netBalance > 0 ? "text-[#21A366]" : netBalance < 0 ? "text-[var(--color-crimson)]" : ""}`}>
-              {netBalance > 0 ? "+" : ""}₹{netBalance.toLocaleString()}
+            <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2">
+              Net Balance
+            </h3>
+            <div
+              className={`font-sans text-3xl font-bold tracking-tight ${
+                banners.netBalance > 0
+                  ? "text-[#21A366]"
+                  : banners.netBalance < 0
+                  ? "text-[var(--color-crimson)]"
+                  : ""
+              }`}
+            >
+              {banners.netBalance > 0 ? "+" : ""}₹{banners.netBalance.toLocaleString("en-IN")}
             </div>
           </div>
         </div>
 
-        {/* =========================================
-            3. QUICK ADD DEBT BAR
-        ========================================= */}
         <div className="pl-4 mb-8">
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-4 shadow-[var(--shadow-brutal)] flex flex-col gap-4 rounded-none">
-            
-            {/* Type Toggle */}
+            {error && (
+              <div className="font-mono text-xs text-[var(--color-crimson)]">{error}</div>
+            )}
+
             <div className="flex gap-2 w-full md:w-64">
-              <button 
-                onClick={() => setDebtType("RECEIVE")}
-                className={`flex-1 py-2 font-sans font-bold text-xs uppercase border-2 rounded-none transition-colors ${
-                  debtType === "RECEIVE" 
-                  ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)]" 
-                  : "bg-transparent text-[var(--color-muted)] border-zinc-800 hover:border-[var(--color-coolwhite)]"
+              <button
+                type="button"
+                onClick={() => setDebtType("LENT")}
+                className={`flex-1 py-2 font-sans font-bold text-xs uppercase border-2 rounded-none transition-colors cursor-pointer ${
+                  debtType === "LENT"
+                    ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)]"
+                    : "bg-transparent text-[var(--color-muted)] border-zinc-800 hover:border-[var(--color-coolwhite)]"
                 }`}
               >
                 Lent (Receive)
               </button>
-              <button 
-                onClick={() => setDebtType("PAY")}
-                className={`flex-1 py-2 font-sans font-bold text-xs uppercase border-2 rounded-none transition-colors ${
-                  debtType === "PAY" 
-                  ? "bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-zinc-600 shadow-[2px_2px_0px_0px_#52525B]" // Subtle inverted style for Borrowed
-                  : "bg-transparent text-[var(--color-muted)] border-zinc-800 hover:border-[var(--color-coolwhite)]"
+              <button
+                type="button"
+                onClick={() => setDebtType("BORROWED")}
+                className={`flex-1 py-2 font-sans font-bold text-xs uppercase border-2 rounded-none transition-colors cursor-pointer ${
+                  debtType === "BORROWED"
+                    ? "bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-zinc-600 shadow-[2px_2px_0px_0px_#52525B]"
+                    : "bg-transparent text-[var(--color-muted)] border-zinc-800 hover:border-[var(--color-coolwhite)]"
                 }`}
               >
                 Borrowed (Pay)
               </button>
             </div>
 
-            {/* Input Form */}
             <form onSubmit={handleAddDebt} className="flex flex-col lg:flex-row gap-3 w-full">
               <div className="w-full lg:w-1/4">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   list="people-list"
-                  placeholder="Person Name..." 
+                  placeholder="Person Name..."
                   value={personName}
                   onChange={(e) => setPersonName(e.target.value)}
                   className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
                   required
                 />
                 <datalist id="people-list">
-                  {people.map(p => <option key={p.id} value={p.name} />)}
+                  {allPersonNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
                 </datalist>
               </div>
 
               <div className="relative w-full lg:w-32">
                 <span className="absolute left-3 top-3 font-mono text-[var(--color-muted)]">₹</span>
-                <input 
-                  type="number" 
-                  placeholder="0.00" 
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 pl-8 pr-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none" 
+                  className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 pl-8 pr-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
                   required
                 />
               </div>
 
-              <input 
-                type="text" 
-                placeholder="Reason / Note" 
+              <input
+                type="text"
+                placeholder="Reason / Note"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full lg:flex-1 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none" 
+                className="w-full lg:flex-1 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
               />
 
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full lg:w-40 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none" 
+                className="w-full lg:w-40 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
               />
 
-              <button 
-                type="submit" 
-                className="w-full lg:w-auto flex items-center justify-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-3 px-6 border-2 border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-[4px_4px_0px_0px_rgba(234,88,12,0.4)] hover:shadow-[4px_4px_0px_0px_rgba(234,88,12,1)] transition-all whitespace-nowrap"
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full lg:w-auto flex items-center justify-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-3 px-6 border-2 border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-[4px_4px_0px_0px_rgba(234,88,12,0.4)] hover:shadow-[4px_4px_0px_0px_rgba(234,88,12,1)] transition-all whitespace-nowrap cursor-pointer disabled:opacity-60"
               >
-                <Plus className="w-5 h-5" strokeWidth={3} />
+                {submitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Plus className="w-5 h-5" strokeWidth={3} />
+                )}
                 Add Record
               </button>
             </form>
           </div>
         </div>
 
-        {/* =========================================
-            4. PERSON-WISE GROUPED MATRIX
-        ========================================= */}
-        <div className="pl-4 grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
-          
-          {/* Left Column: TO RECEIVE */}
-          <div className="flex flex-col">
-            <h2 className="font-sans font-bold text-xl uppercase tracking-wide text-[var(--color-vanta)] mb-4 flex items-center gap-2 border-b-2 border-[var(--color-charcoal)] pb-2">
-              <span className="w-3 h-3 bg-[#21A366] inline-block border border-[var(--color-vanta)]" /> 
-              To Receive
-            </h2>
-            {toReceivePeople.length > 0 ? (
-              toReceivePeople.map(person => <PersonCard key={person.id} person={person} />)
-            ) : (
-              <div className="font-mono text-sm text-[var(--color-muted)] p-4 border border-dashed border-[var(--color-charcoal)]">No pending receivables.</div>
-            )}
+        {loading ? (
+          <div className="pl-4 mb-8 font-mono text-xs uppercase text-[var(--color-muted)]">
+            Loading debts...
           </div>
+        ) : (
+          <div className="pl-4 grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+            <div className="flex flex-col">
+              <h2 className="font-sans font-bold text-xl uppercase tracking-wide text-[var(--color-vanta)] mb-4 flex items-center gap-2 border-b-2 border-[var(--color-charcoal)] pb-2">
+                <span className="w-3 h-3 bg-[#21A366] inline-block border border-[var(--color-vanta)]" />
+                To Receive
+              </h2>
+              {toReceiveList.length > 0 ? (
+                toReceiveList.map((person) => (
+                  <PersonCard
+                    key={person._id}
+                    person={person}
+                    isExpanded={expandedCards.includes(person._id)}
+                    activePartialEntry={activePartialEntry}
+                    partialAmount={partialAmount}
+                    onToggleExpand={toggleExpand}
+                    onStartPartial={(entryId) => {
+                      setActivePartialEntry(entryId);
+                      setPartialAmount("");
+                    }}
+                    onCancelPartial={() => {
+                      setActivePartialEntry(null);
+                      setPartialAmount("");
+                    }}
+                    onChangePartialAmount={setPartialAmount}
+                    onPartialPay={handlePartialPay}
+                    onSettleFull={handleSettleFull}
+                  />
+                ))
+              ) : (
+                <div className="font-mono text-sm text-[var(--color-muted)] p-4 border border-dashed border-[var(--color-charcoal)]">
+                  No pending receivables.
+                </div>
+              )}
+            </div>
 
-          {/* Right Column: TO PAY */}
-          <div className="flex flex-col">
-            <h2 className="font-sans font-bold text-xl uppercase tracking-wide text-[var(--color-vanta)] mb-4 flex items-center gap-2 border-b-2 border-[var(--color-charcoal)] pb-2">
-              <span className="w-3 h-3 bg-[var(--color-crimson)] inline-block border border-[var(--color-vanta)]" /> 
-              To Pay
-            </h2>
-            {toPayPeople.length > 0 ? (
-              toPayPeople.map(person => <PersonCard key={person.id} person={person} />)
-            ) : (
-              <div className="font-mono text-sm text-[var(--color-muted)] p-4 border border-dashed border-[var(--color-charcoal)]">No pending payables.</div>
-            )}
+            <div className="flex flex-col">
+              <h2 className="font-sans font-bold text-xl uppercase tracking-wide text-[var(--color-vanta)] mb-4 flex items-center gap-2 border-b-2 border-[var(--color-charcoal)] pb-2">
+                <span className="w-3 h-3 bg-[var(--color-crimson)] inline-block border border-[var(--color-vanta)]" />
+                To Pay
+              </h2>
+              {toPayList.length > 0 ? (
+                toPayList.map((person) => (
+                  <PersonCard
+                    key={person._id}
+                    person={person}
+                    isExpanded={expandedCards.includes(person._id)}
+                    activePartialEntry={activePartialEntry}
+                    partialAmount={partialAmount}
+                    onToggleExpand={toggleExpand}
+                    onStartPartial={(entryId) => {
+                      setActivePartialEntry(entryId);
+                      setPartialAmount("");
+                    }}
+                    onCancelPartial={() => {
+                      setActivePartialEntry(null);
+                      setPartialAmount("");
+                    }}
+                    onChangePartialAmount={setPartialAmount}
+                    onPartialPay={handlePartialPay}
+                    onSettleFull={handleSettleFull}
+                  />
+                ))
+              ) : (
+                <div className="font-mono text-sm text-[var(--color-muted)] p-4 border border-dashed border-[var(--color-charcoal)]">
+                  No pending payables.
+                </div>
+              )}
+            </div>
           </div>
+        )}
 
-        </div>
-
-        {/* =========================================
-            5. COLLAPSIBLE SETTLED HISTORY
-        ========================================= */}
         <div className="pl-4">
-          <button 
+          <button
+            type="button"
             onClick={() => setShowSettled(!showSettled)}
-            className="flex items-center gap-2 font-mono text-sm uppercase text-[var(--color-muted)] hover:text-[var(--color-vanta)] transition-colors py-2"
+            className="flex items-center gap-2 font-mono text-sm uppercase text-[var(--color-muted)] hover:text-[var(--color-vanta)] transition-colors py-2 cursor-pointer"
           >
             <History className="w-4 h-4" />
-            Settled History
-            {showSettled ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Settled History ({settledHistory.length})
+            {showSettled ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
           </button>
-          
+
           {showSettled && (
             <div className="mt-4 bg-transparent border-2 border-[var(--color-charcoal)] p-4 rounded-none">
-              <div className="flex justify-between items-center py-2 border-b border-zinc-300">
-                <span className="font-mono text-sm text-[var(--color-vanta)] line-through">Nikhil Kumar (₹500)</span>
-                <span className="font-mono text-xs text-[#21A366] uppercase">Settled on 10 Nov</span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="font-mono text-sm text-[var(--color-vanta)] line-through">Office Lunch Pool (₹1200)</span>
-                <span className="font-mono text-xs text-[#21A366] uppercase">Settled on 05 Nov</span>
-              </div>
+              {settledHistory.length === 0 ? (
+                <div className="font-mono text-xs text-[var(--color-muted)] py-2">
+                  No settled entries yet.
+                </div>
+              ) : (
+                settledHistory.map((item, idx) => (
+                  <div
+                    key={item._id}
+                    className={`flex justify-between items-center py-2 ${
+                      idx !== settledHistory.length - 1 ? "border-b border-zinc-300" : ""
+                    }`}
+                  >
+                    <span className="font-mono text-sm text-[var(--color-vanta)] line-through">
+                      {item.personName} — {item.note} (₹{item.amount.toLocaleString("en-IN")})
+                    </span>
+                    <span className="font-mono text-xs text-[#21A366] uppercase">
+                      Settled on {formatShortDate(item.settledAt)}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
-
       </main>
     </div>
   );

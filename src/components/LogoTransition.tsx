@@ -17,7 +17,7 @@ export default function LogoTransition({ onComplete }: LogoTransitionProps) {
       onComplete();
     };
 
-    // जब एनिमेशन पूरी तरह खत्म हो जाए, तभी यह चलेगा
+    
     dotLottie.addEventListener("complete", handleComplete);
 
     return () => {

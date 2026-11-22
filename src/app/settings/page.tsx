@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
-import { Camera, Trash2, Save, AlertTriangle } from "lucide-react";
+import { api } from "@/lib/axios";
+import { Camera, Trash2, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const setUser = useAuthStore((state) => state.setUser);
 
   // Profile State
-  const [displayName, setDisplayName] = useState(user?.name || "System Admin");
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState(user?.name || "");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar || null);
+  const [avatarPayload, setAvatarPayload] = useState<string | null | undefined>(undefined);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Budget State
@@ -25,17 +31,71 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
-  // Handlers
+  useEffect(() => {
+    if (!user) checkAuth();
+  }, [user, checkAuth]);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.name || "");
+      setAvatarUrl(user.avatar || null);
+    }
+  }, [user]);
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAvatarPreview(URL.createObjectURL(file));
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setAvatarUrl(result);
+      setAvatarPayload(result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const removePhoto = () => {
-    setAvatarPreview(null);
+    setAvatarUrl(null);
+    setAvatarPayload("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      setProfileMsg({ type: "err", text: "Display name is required." });
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileMsg(null);
+
+    try {
+      const payload: { name: string; avatar?: string | null } = { name: trimmedName };
+      if (avatarPayload !== undefined) {
+        payload.avatar = avatarPayload === "" ? null : avatarPayload;
+      }
+
+      const { data } = await api.put("/auth/profile", payload);
+      const updated = data.user || data;
+
+      setUser({
+        id: updated._id || updated.id || user?.id || "",
+        name: updated.name || trimmedName,
+        email: updated.email || user?.email || "",
+        avatar: updated.avatar ?? (avatarPayload === "" ? undefined : avatarUrl || undefined),
+      });
+      setAvatarPayload(undefined);
+      setProfileMsg({ type: "ok", text: "Profile updated." });
+    } catch (err: any) {
+      setProfileMsg({
+        type: "err",
+        text: err.response?.data?.message || "Failed to update profile.",
+      });
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   return (
@@ -43,9 +103,7 @@ export default function SettingsPage() {
       <Sidebar />
       <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-6 pb-12 lg:pr-10">
         
-        {/* =========================================
-            1. INLINE PAGE HEADER
-        ========================================= */}
+        {/* 1. INLINE PAGE HEADER */}
         <header className="mb-8 pl-4">
           <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
             Account Settings //
@@ -55,14 +113,10 @@ export default function SettingsPage() {
           </p>
         </header>
 
-        {/* =========================================
-            2-COLUMN GRID LAYOUT
-        ========================================= */}
+        {/* 2-COLUMN GRID LAYOUT */}
         <div className="pl-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* =========================================
-              LEFT COLUMN
-          ========================================= */}
+          {/* LEFT COLUMN */}
           <div className="flex flex-col gap-8">
             
             {/* CARD 1: PROFILE & IDENTITY */}
@@ -74,23 +128,33 @@ export default function SettingsPage() {
               {/* Avatar Upload */}
               <div className="flex items-center gap-6 mb-6">
                 <div className="w-20 h-20 bg-[var(--color-charcoal)] border-2 border-[var(--color-amber)] flex items-center justify-center overflow-hidden rounded-none flex-shrink-0">
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Avatar Preview" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="font-mono font-bold text-[var(--color-muted)] text-2xl">{displayName.charAt(0)}</span>
+                    <span className="font-mono font-bold text-[var(--color-muted)] text-2xl">
+                      {(displayName || "U").charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="flex flex-col gap-2">
-                  <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handlePhotoUpload} />
-                  <button 
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handlePhotoUpload}
+                  />
+                  <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 font-sans font-bold text-xs uppercase text-[var(--color-vanta)] bg-[var(--color-amber)] border-2 border-[var(--color-amber)] px-4 py-2 hover:bg-[var(--color-amber)]/90 transition-colors rounded-none"
+                    className="flex items-center gap-2 font-sans font-bold text-xs uppercase text-[var(--color-vanta)] bg-[var(--color-amber)] border-2 border-[var(--color-amber)] px-4 py-2 hover:bg-[var(--color-amber)]/90 transition-colors rounded-none cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Upload Photo
                   </button>
-                  <button 
+                  <button
+                    type="button"
                     onClick={removePhoto}
-                    className="flex items-center gap-2 font-sans font-bold text-xs uppercase text-[var(--color-muted)] hover:text-[var(--color-crimson)] transition-colors px-2 py-1"
+                    className="flex items-center gap-2 font-sans font-bold text-xs uppercase text-[var(--color-muted)] hover:text-[var(--color-crimson)] transition-colors px-2 py-1 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" /> Remove
                   </button>
@@ -100,27 +164,51 @@ export default function SettingsPage() {
               {/* Inputs */}
               <div className="flex flex-col gap-4 mb-6">
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Display Name</label>
-                  <input 
-                    type="text" 
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-2.5 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
                   />
                 </div>
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Email Address (Read Only)</label>
-                  <input 
-                    type="email" 
-                    value={user?.email || "admin@autoledger.com"}
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Email Address (Read Only)
+                  </label>
+                  <input
+                    type="email"
+                    value={user?.email || ""}
                     readOnly
                     className="w-full bg-zinc-900 border border-zinc-800 text-[var(--color-muted)] font-mono py-2.5 px-3 cursor-not-allowed rounded-none"
                   />
                 </div>
               </div>
 
-              <button className="flex items-center justify-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-3 px-6 border-2 border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,1)] transition-all rounded-none">
-                <Save className="w-4 h-4 stroke-[3]" /> Save Profile
+              {profileMsg && (
+                <p
+                  className={`font-mono text-xs mb-4 ${
+                    profileMsg.type === "ok" ? "text-emerald-400" : "text-[var(--color-crimson)]"
+                  }`}
+                >
+                  {profileMsg.text}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="flex items-center justify-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-3 px-6 border-2 border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,1)] transition-all rounded-none cursor-pointer disabled:opacity-70"
+              >
+                {savingProfile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 stroke-[3]" />
+                )}
+                {savingProfile ? "Saving..." : "Save Profile"}
               </button>
             </div>
 
@@ -132,9 +220,11 @@ export default function SettingsPage() {
               
               <div className="flex flex-col gap-6 mb-6">
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Monthly Budget Limit (₹)</label>
-                  <input 
-                    type="number" 
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Monthly Budget Limit (₹)
+                  </label>
+                  <input
+                    type="number"
                     value={budgetLimit}
                     onChange={(e) => setBudgetLimit(e.target.value)}
                     className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-2.5 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
@@ -142,16 +232,19 @@ export default function SettingsPage() {
                 </div>
                 
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Alert Warning Threshold</label>
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Alert Warning Threshold
+                  </label>
                   <div className="flex gap-3">
                     {["75%", "80%", "90%"].map((percent) => (
-                      <button 
+                      <button
+                        type="button"
                         key={percent}
                         onClick={() => setAlertThreshold(percent)}
                         className={`flex-1 py-2 font-mono text-sm border-2 rounded-none transition-all ${
-                          alertThreshold === percent 
-                          ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold" 
-                          : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
+                          alertThreshold === percent
+                            ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold"
+                            : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
                         }`}
                       >
                         {percent}
@@ -161,16 +254,17 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <button className="flex items-center justify-center gap-2 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold uppercase py-3 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-none hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] transition-all rounded-none">
+              <button
+                type="button"
+                className="flex items-center justify-center gap-2 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold uppercase py-3 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-none hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] transition-all rounded-none"
+              >
                 Update Limits
               </button>
             </div>
 
           </div>
 
-          {/* =========================================
-              RIGHT COLUMN
-          ========================================= */}
+          {/* RIGHT COLUMN */}
           <div className="flex flex-col gap-8">
             
             {/* CARD 3: LANGUAGE & CURRENCY */}
@@ -181,16 +275,19 @@ export default function SettingsPage() {
               
               <div className="flex flex-col gap-6 mb-6">
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">App Language</label>
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    App Language
+                  </label>
                   <div className="flex flex-wrap gap-3">
                     {["English", "हिन्दी (Hindi)", "Hinglish"].map((lang) => (
-                      <button 
+                      <button
+                        type="button"
                         key={lang}
                         onClick={() => setLanguage(lang)}
                         className={`flex-1 min-w-[100px] py-2 font-mono text-xs uppercase border-2 rounded-none transition-all ${
-                          language === lang 
-                          ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold" 
-                          : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
+                          language === lang
+                            ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold"
+                            : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
                         }`}
                       >
                         {lang}
@@ -200,16 +297,19 @@ export default function SettingsPage() {
                 </div>
                 
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Primary Currency</label>
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Primary Currency
+                  </label>
                   <div className="flex gap-3">
                     {["₹ INR", "$ USD", "€ EUR"].map((curr) => (
-                      <button 
+                      <button
+                        type="button"
                         key={curr}
                         onClick={() => setCurrency(curr)}
                         className={`flex-1 py-2 font-mono text-xs uppercase border-2 rounded-none transition-all ${
-                          currency === curr 
-                          ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold" 
-                          : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
+                          currency === curr
+                            ? "bg-[var(--color-amber)] text-[var(--color-vanta)] border-[var(--color-amber)] font-bold"
+                            : "bg-transparent text-[var(--color-coolwhite)] border-zinc-700 hover:border-[var(--color-coolwhite)]"
                         }`}
                       >
                         {curr}
@@ -219,7 +319,10 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <button className="flex items-center justify-center gap-2 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold uppercase py-3 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-none hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] transition-all rounded-none">
+              <button
+                type="button"
+                className="flex items-center justify-center gap-2 bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold uppercase py-3 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-none hover:shadow-[3px_3px_0px_0px_rgba(234,88,12,0.4)] transition-all rounded-none"
+              >
                 Save Preferences
               </button>
             </div>
@@ -231,12 +334,13 @@ export default function SettingsPage() {
                 Security & Danger Zone
               </h2>
               
-              {/* Change Password */}
               <div className="flex flex-col gap-4 mb-8">
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">Current Password</label>
-                  <input 
-                    type="password" 
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
                     placeholder="••••••••"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
@@ -244,26 +348,36 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">New Password</label>
-                  <input 
-                    type="password" 
+                  <label className="font-mono text-xs uppercase text-[var(--color-muted)] block mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
                     placeholder="••••••••"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-2.5 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
                   />
                 </div>
-                <button className="flex items-center justify-center bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold text-sm uppercase py-2 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] transition-colors rounded-none w-fit">
+                <button
+                  type="button"
+                  className="flex items-center justify-center bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] font-sans font-bold text-sm uppercase py-2 px-6 border-2 border-zinc-700 hover:border-[var(--color-amber)] transition-colors rounded-none w-fit"
+                >
                   Update Password
                 </button>
               </div>
 
-              {/* Danger Zone Actions */}
               <div className="pt-6 border-t border-[var(--color-crimson)]/30 flex flex-col sm:flex-row gap-4">
-                <button className="flex-1 font-sans font-bold text-xs uppercase py-3 border-2 border-[var(--color-crimson)] text-[var(--color-crimson)] hover:bg-[var(--color-crimson)]/10 transition-colors rounded-none">
+                <button
+                  type="button"
+                  className="flex-1 font-sans font-bold text-xs uppercase py-3 border-2 border-[var(--color-crimson)] text-[var(--color-crimson)] hover:bg-[var(--color-crimson)]/10 transition-colors rounded-none"
+                >
                   Reset All Data
                 </button>
-                <button className="flex-1 font-sans font-bold text-xs uppercase py-3 border-2 border-[var(--color-crimson)] bg-[var(--color-crimson)] text-[var(--color-vanta)] hover:bg-red-700 hover:border-red-700 transition-colors rounded-none">
+                <button
+                  type="button"
+                  className="flex-1 font-sans font-bold text-xs uppercase py-3 border-2 border-[var(--color-crimson)] bg-[var(--color-crimson)] text-[var(--color-vanta)] hover:bg-red-700 hover:border-red-700 transition-colors rounded-none"
+                >
                   Delete Account
                 </button>
               </div>
