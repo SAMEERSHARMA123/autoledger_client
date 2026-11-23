@@ -7,6 +7,7 @@ import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
 import { useExpenseStore, ExpenseItem } from "@/store/useExpenseStore";
 import { expenseAdded, expenseFailed } from "@/lib/notifyAction";
+import EmptyActivityIllustration from "@/components/EmptyActivityIllustration";
 
 export default function DashboardWidgets() {
   const [amount, setAmount] = useState("");
@@ -161,14 +162,22 @@ export default function DashboardWidgets() {
             </h2>
           </div>
 
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-col flex-1 justify-center">
             {listLoading ? (
               <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase animate-pulse">
                 Loading expenses...
               </div>
             ) : recentExpenses.length === 0 ? (
-              <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase">
-                No expenses recorded yet.
+              <div className="px-4 py-8 sm:py-10 flex flex-col items-center text-center gap-3">
+                <div className="bg-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] p-3 shadow-[3px_3px_0px_0px_var(--color-amber)]">
+                  <EmptyActivityIllustration className="w-32 h-32 sm:w-40 sm:h-40 shrink-0" />
+                </div>
+                <h3 className="font-sans text-sm sm:text-base font-bold uppercase text-[var(--color-coolwhite)]">
+                  No Recent Activity 
+                </h3>
+                <p className="font-mono text-xs text-[var(--color-muted)] max-w-sm">
+                  Log your first expense above to track daily spend and burn rate.
+                </p>
               </div>
             ) : (
               recentExpenses.map((item) => (

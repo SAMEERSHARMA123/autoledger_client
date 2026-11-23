@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
+import EmptyLedgerIllustration from "@/components/EmptyLedgerIllustration";
 import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -25,6 +26,7 @@ import {
   FileSpreadsheet,
   File,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 
 interface LedgerItem {
@@ -667,11 +669,30 @@ export default function LedgerPage() {
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={6}
-                        className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase"
-                      >
-                        No transactions match your filters.
+                      <td colSpan={6} className="px-4 py-12 sm:py-16">
+                        <div className="max-w-md mx-auto flex flex-col items-center text-center gap-3">
+                          <div className="bg-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] p-3 shadow-[3px_3px_0px_0px_var(--color-amber)]">
+                            <EmptyLedgerIllustration className="w-32 h-32 sm:w-40 sm:h-40 shrink-0" />
+                          </div>
+                          <h3 className="font-sans text-base sm:text-lg font-bold uppercase text-[var(--color-coolwhite)]">
+                            No Ledger History Yet 
+                          </h3>
+                          <p className="font-mono text-xs text-[var(--color-muted)]">
+                            {isFiltered
+                              ? "No entries match your current filters. Try adjusting or resetting filters."
+                              : "Add expenses or record entries to start building your ledger history."}
+                          </p>
+                          {isFiltered && (
+                            <button
+                              type="button"
+                              onClick={handleResetFilters}
+                              className="mt-1 inline-flex items-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold text-xs uppercase py-2 px-4 border-2 border-[var(--color-amber)] hover:-translate-y-[1px] transition-all rounded-none cursor-pointer"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              Reset Filters
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ) : (
