@@ -6,6 +6,12 @@ import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
 import { useExpenseStore } from "@/store/useExpenseStore";
 import {
+  moneyLent,
+  lentFailed,
+  moneyBorrowed,
+  borrowedFailed,
+} from "@/lib/notifyAction";
+import {
   Plus,
   ChevronDown,
   ChevronUp,
@@ -251,16 +257,19 @@ export default function DebtsPage() {
 
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!personName.trim() || !amount || Number(amount) <= 0) return;
+    const numericAmount = Number(amount);
+    const cleanPerson = personName.trim();
+    const cleanNote = note.trim();
+    if (!cleanPerson || !numericAmount || numericAmount <= 0) return;
 
     setSubmitting(true);
     setError("");
     try {
       const { data } = await api.post("/debts", {
-        personName: personName.trim(),
+        personName: cleanPerson,
         type: debtType,
-        amount: Number(amount),
-        note: note.trim(),
+        amount: numericAmount,
+        note: cleanNote,
         date: dueDate || undefined,
       });
 
@@ -271,13 +280,29 @@ export default function DebtsPage() {
         );
       }
 
+      const detailText = `₹${numericAmount.toLocaleString("en-IN")} ${
+        debtType === "LENT" ? "to" : "from"
+      } ${cleanPerson}${cleanNote ? ` • ${cleanNote}` : ""}`;
+
+      if (debtType === "LENT") {
+        moneyLent(detailText);
+      } else {
+        moneyBorrowed(detailText);
+      }
+
       setPersonName("");
       setAmount("");
       setNote("");
       setDueDate("");
       refreshDashboardData();
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to add record");
+      const msg = err.response?.data?.message || "Failed to add record";
+      setError(msg);
+      if (debtType === "LENT") {
+        lentFailed(msg);
+      } else {
+        borrowedFailed(msg);
+      }
     } finally {
       setSubmitting(false);
     }

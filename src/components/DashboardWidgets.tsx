@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Plus, Trash2, ArrowRight, AlertTriangle, Flame, Target, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/axios";
 import { confirmPopup } from "@/lib/confirmPopup";
 import { useExpenseStore, ExpenseItem } from "@/store/useExpenseStore";
+import { expenseAdded, expenseFailed } from "@/lib/notifyAction";
 
 export default function DashboardWidgets() {
   const [amount, setAmount] = useState("");
@@ -23,31 +24,29 @@ export default function DashboardWidgets() {
   const refreshDashboardData = useExpenseStore((state) => state.refreshDashboardData);
   const deleteExpense = useExpenseStore((state) => state.deleteExpense);
 
-  const audioRef = useRef<HTMLAudioElement | null>(
-    typeof Audio !== "undefined" ? new Audio("/sounds/expense-add.wav") : null
-  );
-
   const handleLogExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
+
+    const numericAmount = Number(amount);
+    const trimmedNote = note.trim();
 
     setLoading(true);
     setError("");
 
     try {
       await api.post("/expenses", {
-        amount: Number(amount),
+        amount: numericAmount,
         type: "EXPENSE",
         category,
         paymentMethod: mode,
-        notes: note,
+        notes: trimmedNote,
         isDebtRelated: isDebt,
       });
 
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      }
+      expenseAdded(
+        `₹${numericAmount.toLocaleString("en-IN")} • ${category}${trimmedNote ? ` (${trimmedNote})` : ""}`
+      );
 
       setAmount("");
       setNote("");
@@ -55,7 +54,9 @@ export default function DashboardWidgets() {
 
       await refreshDashboardData();
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to log expense");
+      const msg = err.response?.data?.message || "Failed to log expense";
+      setError(msg);
+      expenseFailed(msg);
     } finally {
       setLoading(false);
     }
@@ -71,7 +72,9 @@ export default function DashboardWidgets() {
     try {
       await deleteExpense(item);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to delete expense");
+      const msg = err.response?.data?.message || "Failed to delete expense";
+      setError(msg);
+      expenseFailed(msg);
     }
   };
 

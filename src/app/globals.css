@@ -1,21 +1,71 @@
 @import "tailwindcss";
 
-@theme {
-  /* Industrial Forge Colors */
+:root,
+[data-theme="industrial-forge"] {
   --color-vanta: #0A0A0A;
-  --color-charcoal: #171717;
+  --color-charcoal: #161618;
+  --color-coolwhite: #F4F4F5;
   --color-amber: #EA580C;
+  --color-muted: #71717A;
   --color-crimson: #DC2626;
-  --color-coolwhite: #F3F4F6;
-  --color-muted: #737373;
-
-  /* Brutalist Shadows */
-  --shadow-brutal: 4px 4px 0px 0px rgba(234, 88, 12, 1);
-  --shadow-brutal-sm: 2px 2px 0px 0px rgba(234, 88, 12, 1);
+  --shadow-brutal: 4px 4px 0px 0px var(--color-amber);
 }
 
-/* Custom Highlight Color */
-::selection {
-  background-color: var(--color-amber);
+[data-theme="cyber-circuit"] {
+  --color-vanta: #070B09;
+  --color-charcoal: #111916;
+  --color-coolwhite: #F1F5F3;
+  --color-amber: #10B981;
+  --color-muted: #6B7F76;
+  --color-crimson: #E11D48;
+  --shadow-brutal: 4px 4px 0px 0px var(--color-amber);
+}
+
+[data-theme="cobalt-blueprint"] {
+  --color-vanta: #080C14;
+  --color-charcoal: #111827;
+  --color-coolwhite: #F0F4F8;
+  --color-amber: #0284C7;
+  --color-muted: #64748B;
+  --color-crimson: #F43F5E;
+  --shadow-brutal: 4px 4px 0px 0px var(--color-amber);
+}
+
+[data-theme="sovereign-vault"] {
+  --color-vanta: #0C0A08;
+  --color-charcoal: #1A1612;
+  --color-coolwhite: #F7F5F0;
+  --color-amber: #D97706;
+  --color-muted: #78716C;
+  --color-crimson: #B91C1C;
+  --shadow-brutal: 4px 4px 0px 0px var(--color-amber);
+}
+
+[data-theme="acid-reactor"] {
+  --color-vanta: #0B0C0A;
+  --color-charcoal: #171915;
+  --color-coolwhite: #F4F6F0;
+  --color-amber: #84CC16;
+  --color-muted: #737A6C;
+  --color-crimson: #EF4444;
+  --shadow-brutal: 4px 4px 0px 0px var(--color-amber);
+}
+
+@theme inline {
+  --color-vanta: var(--color-vanta);
+  --color-charcoal: var(--color-charcoal);
+  --color-coolwhite: var(--color-coolwhite);
+  --color-amber: var(--color-amber);
+  --color-muted: var(--color-muted);
+  --color-crimson: var(--color-crimson);
+  --shadow-brutal: var(--shadow-brutal);
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-coolwhite);
   color: var(--color-vanta);
 }
