@@ -17,6 +17,8 @@ export interface ExportLedgerSummary {
   itemCount: number;
   highestExpense: { amount: number; category: string };
   averageSpend: number;
+  totalIncome?: number;
+  incomeCount?: number;
 }
 
 export interface ExportMeta {
@@ -27,18 +29,33 @@ export interface ExportMeta {
   summary: ExportLedgerSummary;
 }
 
-const formatDateLabel = (isoDate: string) =>
-  new Date(isoDate).toLocaleDateString("en-IN", {
+const formatIsoDate = (isoDate: string) => {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return String(isoDate || "");
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatReadableDate = (isoDate: string) => {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return String(isoDate || "");
+  return d.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
+};
 
 const formatCurrency = (val: number) =>
-  `₹${Number(val || 0).toLocaleString("en-IN", {
+  `₹${Math.abs(Number(val || 0)).toLocaleString("en-IN", {
     minimumFractionDigits: val % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   })}`;
+
+const isHttpUrl = (url?: string) =>
+  typeof url === "string" && /^https?:\/\//i.test(url.trim());
 
 const escapeCsv = (val: unknown) => {
   const str = String(val ?? "");
@@ -60,19 +77,31 @@ const triggerFileDownload = (blob: Blob, filename: string) => {
 };
 
 const buildRows = (items: ExportLedgerItem[]) =>
-  items.map((tx, index) => ({
-    "#": index + 1,
-    Date: formatDateLabel(tx.date),
-    Note: tx.notes || tx.category,
-    Category: tx.category,
-    Type: (tx.type || "EXPENSE").toUpperCase(),
-    Method: tx.paymentMethod,
-    Proof: tx.receiptUrl ? "ATTACHED" : "NONE",
-    Amount: tx.type?.toUpperCase() === "INCOME" ? tx.amount : -tx.amount,
-    FormattedAmount: `${tx.type?.toUpperCase() === "INCOME" ? "+" : "-"}${formatCurrency(tx.amount)}`,
-  }));
+  items.map((tx, index) => {
+    const isIncome = tx.type?.toUpperCase() === "INCOME";
+    const cleanProof = tx.receiptUrl?.trim() || "";
+    const proofText = isHttpUrl(cleanProof)
+      ? cleanProof
+      : cleanProof
+      ? "ATTACHED"
+      : "NONE";
 
-export function exportLedgerAsCsv(items: ExportLedgerItem[], filePrefix = "autoledger-statement") {
+    return {
+      "#": index + 1,
+      Date: formatIsoDate(tx.date),
+      Note: tx.notes || (isIncome ? "Income" : tx.category),
+      Category: isIncome ? "—" : tx.category,
+      Type: (tx.type || "EXPENSE").toUpperCase(),
+      Method: tx.paymentMethod,
+      Proof: proofText,
+      Amount: Math.abs(Number(tx.amount || 0)),
+    };
+  });
+
+export function exportLedgerAsCsv(
+  items: ExportLedgerItem[],
+  filePrefix = "autoledger-statement"
+) {
   const rows = buildRows(items);
   const headers = ["#", "Date", "Note", "Category", "Type", "Method", "Proof", "Amount"];
   const csvLines = [
@@ -90,22 +119,43 @@ export function exportLedgerAsCsv(items: ExportLedgerItem[], filePrefix = "autol
   triggerFileDownload(blob, `${filePrefix}.csv`);
 }
 
-export function exportLedgerAsXlsx(items: ExportLedgerItem[], filePrefix = "autoledger-statement") {
-  const rows = buildRows(items).map(({ FormattedAmount, ...rest }) => rest);
+export function exportLedgerAsXlsx(
+  items: ExportLedgerItem[],
+  filePrefix = "autoledger-statement"
+) {
+  const rows = buildRows(items).map((row, idx) => {
+    const rawUrl = items[idx]?.receiptUrl?.trim() || "";
+    return {
+      ...row,
+      Proof: isHttpUrl(rawUrl) ? "View Proof" : row.Proof,
+    };
+  });
+
   const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Ledger Statement");
+
+  items.forEach((tx, idx) => {
+    const rawUrl = tx.receiptUrl?.trim() || "";
+    if (isHttpUrl(rawUrl)) {
+      const cellRef = XLSX.utils.encode_cell({ r: idx + 1, c: 6 });
+      if (worksheet[cellRef]) {
+        worksheet[cellRef].l = { Target: rawUrl, Tooltip: "Open Receipt Proof" };
+      }
+    }
+  });
 
   worksheet["!cols"] = [
-    { wch: 5 },
-    { wch: 15 },
-    { wch: 34 },
+    { wch: 6 },
+    { wch: 16 },
+    { wch: 36 },
     { wch: 18 },
-    { wch: 10 },
     { wch: 12 },
     { wch: 12 },
+    { wch: 22 },
     { wch: 16 },
   ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Ledger Statement");
 
   const wbBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   const blob = new Blob([wbBuffer], {
@@ -114,9 +164,15 @@ export function exportLedgerAsXlsx(items: ExportLedgerItem[], filePrefix = "auto
   triggerFileDownload(blob, `${filePrefix}.xlsx`);
 }
 
-export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: ExportMeta) {
+export function exportLedgerAsPdfStatement(
+  items: ExportLedgerItem[],
+  meta: ExportMeta
+) {
   const printWindow = window.open("", "_blank", "width=920,height=780");
   if (!printWindow) return;
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const logoSrc = `${origin}/slogo%20(2).svg`;
 
   const generatedAt = new Date().toLocaleString("en-IN", {
     day: "2-digit",
@@ -134,20 +190,34 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       : items
           .map((tx, idx) => {
             const isIncome = tx.type?.toUpperCase() === "INCOME";
+            const proofUrl = tx.receiptUrl?.trim() || "";
+            const proofCellHtml = isHttpUrl(proofUrl)
+              ? `<a href="${escapeHtml(
+                  proofUrl
+                )}" target="_blank" rel="noopener noreferrer" class="proof-link">View Proof ↗</a>`
+              : proofUrl
+              ? `<span class="proof-yes">Attached</span>`
+              : `<span class="muted">—</span>`;
+
+            const tagHtml = isIncome
+              ? `<span class="badge income-badge">INCOME</span>`
+              : `<span class="badge">${escapeHtml(tx.category)}</span>${
+                  tx.isDebtRelated ? `<span class="badge debt">DEBT</span>` : ""
+                }`;
+
             return `
               <tr>
                 <td class="mono muted">${String(idx + 1).padStart(2, "0")}</td>
-                <td class="mono">${formatDateLabel(tx.date)}</td>
+                <td class="mono">${formatReadableDate(tx.date)}</td>
                 <td>
-                  <div class="tx-note">${escapeHtml(tx.notes || tx.category)}</div>
-                  <div class="tx-tags">
-                    <span class="badge">${escapeHtml(tx.category)}</span>
-                    ${tx.isDebtRelated ? `<span class="badge debt">DEBT</span>` : ""}
-                  </div>
+                  <div class="tx-note">${escapeHtml(tx.notes || (isIncome ? "Income" : tx.category))}</div>
+                  <div class="tx-tags">${tagHtml}</div>
                 </td>
                 <td class="mono">${escapeHtml(tx.paymentMethod)}</td>
-                <td class="mono center">${tx.receiptUrl ? `<span class="proof-yes">BILL ATTACHED</span>` : `<span class="muted">—</span>`}</td>
-                <td class="mono right ${isIncome ? "income" : "expense"}">${isIncome ? "+" : "-"}${formatCurrency(tx.amount)}</td>
+                <td class="mono center">${proofCellHtml}</td>
+                <td class="mono right ${isIncome ? "income" : "expense"}">${formatCurrency(
+              tx.amount
+            )}</td>
               </tr>
             `;
           })
@@ -163,31 +233,29 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f4f4f5;
+      background: #ffffff;
       color: #0a0a0a;
-      padding: 28px;
+      padding: 24px;
     }
     .sheet {
       max-width: 840px;
       margin: 0 auto;
       background: #ffffff;
-      border: 2px solid #0a0a0a;
-      box-shadow: 6px 6px 0px #0a0a0a;
-      padding: 32px;
+      border: 1.5px solid #0a0a0a;
+      padding: 28px;
     }
     .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
     .right { text-align: right; }
     .center { text-align: center; }
     .muted { color: #71717a; }
 
-    /* Header / Brand Receipt Top */
     .top-bar {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 2px solid #0a0a0a;
-      padding-bottom: 20px;
-      margin-bottom: 20px;
+      align-items: center;
+      border-bottom: 1.5px solid #0a0a0a;
+      padding-bottom: 16px;
+      margin-bottom: 18px;
       gap: 16px;
     }
     .brand-box {
@@ -195,21 +263,13 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       align-items: center;
       gap: 12px;
     }
-    .logo-mark {
+    .brand-logo {
       width: 44px;
       height: 44px;
-      background: #0a0a0a;
-      border: 2px solid #ea580c;
-      color: #ea580c;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 16px;
-      letter-spacing: -0.05em;
+      object-fit: contain;
     }
     .brand-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: -0.02em;
@@ -225,26 +285,14 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       font-size: 11px;
       line-height: 1.6;
     }
-    .doc-badge {
-      display: inline-block;
-      background: #ea580c;
-      color: #0a0a0a;
-      font-weight: 700;
-      padding: 2px 8px;
-      font-size: 10px;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
 
-    /* Info Grid */
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
-      background: #fafafa;
       border: 1px solid #e4e4e7;
-      padding: 14px 16px;
-      margin-bottom: 20px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
       font-size: 12px;
     }
     .info-label {
@@ -258,66 +306,59 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       color: #0a0a0a;
     }
 
-    /* Summary Strip */
-    .summary-grid {
+    .metrics-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 24px;
+      border: 1px solid #d4d4d8;
+      margin-bottom: 20px;
     }
-    .stat-card {
-      border: 2px solid #0a0a0a;
-      padding: 12px 14px;
-      background: #0a0a0a;
-      color: #ffffff;
+    .metric-cell {
+      padding: 10px 14px;
+      border-right: 1px solid #d4d4d8;
     }
-    .stat-card.accent {
-      background: #ea580c;
-      color: #0a0a0a;
+    .metric-cell:last-child {
+      border-right: none;
     }
-    .stat-card.light {
-      background: #ffffff;
-      color: #0a0a0a;
-    }
-    .stat-label {
+    .metric-label {
       font-size: 10px;
       text-transform: uppercase;
-      opacity: 0.75;
-      margin-bottom: 4px;
+      color: #71717a;
     }
-    .stat-val {
-      font-size: 20px;
+    .metric-val {
+      font-size: 16px;
       font-weight: 800;
+      margin-top: 2px;
+      color: #0a0a0a;
     }
-    .stat-sub {
+    .metric-sub {
       font-size: 10px;
-      margin-top: 3px;
-      opacity: 0.85;
+      color: #71717a;
+      margin-top: 2px;
     }
 
-    /* Ledger Table */
     .section-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       color: #0a0a0a;
     }
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
     th {
-      background: #0a0a0a;
-      color: #ffffff;
+      background: #f4f4f5;
+      color: #0a0a0a;
       font-size: 10px;
       text-transform: uppercase;
-      padding: 9px 10px;
+      padding: 8px 10px;
       text-align: left;
-      border: 1px solid #0a0a0a;
+      border-top: 1.5px solid #0a0a0a;
+      border-bottom: 1.5px solid #0a0a0a;
     }
     th.right { text-align: right; }
     th.center { text-align: center; }
@@ -336,25 +377,32 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       padding: 1px 6px;
       color: #3f3f46;
     }
+    .badge.income-badge {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #16a34a;
+    }
     .badge.debt {
       background: #fef2f2;
       border-color: #fecaca;
       color: #dc2626;
     }
+    .proof-link {
+      font-size: 10px;
+      color: #ea580c;
+      font-weight: 700;
+      text-decoration: underline;
+    }
     .proof-yes {
       font-size: 10px;
-      color: #b45309;
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      padding: 2px 6px;
+      color: #52525b;
     }
     .income { color: #16a34a; font-weight: 700; }
     .expense { color: #0a0a0a; font-weight: 700; }
 
-    /* Footer */
     .footer {
-      border-top: 2px solid #0a0a0a;
-      padding-top: 14px;
+      border-top: 1.5px solid #0a0a0a;
+      padding-top: 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -363,8 +411,8 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
     }
 
     @media print {
-      body { background: #ffffff; padding: 0; }
-      .sheet { border: none; box-shadow: none; max-width: 100%; padding: 12px; }
+      body { padding: 0; }
+      .sheet { border: none; max-width: 100%; padding: 8px; }
     }
   </style>
 </head>
@@ -372,16 +420,15 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
   <div class="sheet">
     <div class="top-bar">
       <div class="brand-box">
-        <div class="logo-mark mono">AL//</div>
+        <img src="${logoSrc}" alt="AutoLedger" class="brand-logo" />
         <div>
           <div class="brand-title">AutoLedger</div>
-          <div class="brand-sub mono">Verified Expense & Receipt Statement</div>
+          <div class="brand-sub mono">Expense & Receipt Statement</div>
         </div>
       </div>
       <div class="doc-meta mono">
-        <div class="doc-badge">Official Ledger Receipt</div>
-        <div><strong>REF:</strong> ${statementNo}</div>
-        <div><strong>ISSUED:</strong> ${generatedAt}</div>
+        <div><strong>STATEMENT:</strong> ${statementNo}</div>
+        <div><strong>DATE:</strong> ${generatedAt}</div>
       </div>
     </div>
 
@@ -389,30 +436,38 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
       <div>
         <div class="info-label mono">Account Holder</div>
         <div class="info-value">${escapeHtml(meta.userName || "Account User")}</div>
-        <div class="mono muted" style="font-size:11px;margin-top:2px;">${escapeHtml(meta.userEmail || "")}</div>
+        <div class="mono muted" style="font-size:11px;margin-top:2px;">${escapeHtml(
+          meta.userEmail || ""
+        )}</div>
       </div>
       <div>
-        <div class="info-label mono">Export Scope & Filters</div>
+        <div class="info-label mono">Scope & Filters</div>
         <div class="info-value">${escapeHtml(meta.scopeLabel)}</div>
-        <div class="mono muted" style="font-size:11px;margin-top:2px;">${escapeHtml(meta.filtersSummary)}</div>
+        <div class="mono muted" style="font-size:11px;margin-top:2px;">${escapeHtml(
+          meta.filtersSummary
+        )}</div>
       </div>
     </div>
 
-    <div class="summary-grid">
-      <div class="stat-card">
-        <div class="stat-label mono">Total Spend</div>
-        <div class="stat-val mono">${formatCurrency(meta.summary.filteredTotal)}</div>
-        <div class="stat-sub mono">${meta.summary.itemCount} Expense Items</div>
+    <div class="metrics-row">
+      <div class="metric-cell">
+        <div class="metric-label mono">Total Spend</div>
+        <div class="metric-val mono">${formatCurrency(meta.summary.filteredTotal)}</div>
+        <div class="metric-sub mono">${meta.summary.itemCount} Expense Items</div>
       </div>
-      <div class="stat-card accent">
-        <div class="stat-label mono">Highest Expense</div>
-        <div class="stat-val mono">${formatCurrency(meta.summary.highestExpense.amount)}</div>
-        <div class="stat-sub mono">${escapeHtml(meta.summary.highestExpense.category)}</div>
+      <div class="metric-cell">
+        <div class="metric-label mono">Highest Expense</div>
+        <div class="metric-val mono">${formatCurrency(
+          meta.summary.highestExpense.amount
+        )}</div>
+        <div class="metric-sub mono">${escapeHtml(
+          meta.summary.highestExpense.category
+        )}</div>
       </div>
-      <div class="stat-card light">
-        <div class="stat-label mono">Average Spend</div>
-        <div class="stat-val mono">${formatCurrency(meta.summary.averageSpend)}</div>
-        <div class="stat-sub mono">${items.length} Total Rows Exported</div>
+      <div class="metric-cell">
+        <div class="metric-label mono">Average Spend</div>
+        <div class="metric-val mono">${formatCurrency(meta.summary.averageSpend)}</div>
+        <div class="metric-sub mono">${items.length} Rows Exported</div>
       </div>
     </div>
 
@@ -422,7 +477,7 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
         <tr>
           <th>#</th>
           <th>Date</th>
-          <th>Description & Category</th>
+          <th>Description & Tag</th>
           <th>Method</th>
           <th class="center">Receipt Proof</th>
           <th class="right">Amount</th>
@@ -434,8 +489,8 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
     </table>
 
     <div class="footer mono">
-      <span>AUTOLEDGER // SYSTEM GENERATED LEDGER RECEIPT</span>
-      <span>SAVE AS PDF IN PRINT DIALOG FOR ARCHIVAL</span>
+      <span>AUTOLEDGER // SYSTEM GENERATED STATEMENT</span>
+      <span>SAVE AS PDF IN PRINT DIALOG</span>
     </div>
   </div>
 
@@ -443,7 +498,7 @@ export function exportLedgerAsPdfStatement(items: ExportLedgerItem[], meta: Expo
     window.onload = function () {
       setTimeout(function () {
         window.print();
-      }, 200);
+      }, 250);
     };
   </script>
 </body>

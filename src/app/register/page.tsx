@@ -64,7 +64,7 @@ export default function RegisterPage() {
           
           <div className="mb-8">
             <h1 className="font-sans text-3xl font-bold uppercase tracking-tight mb-2">
-              Create Account //
+              Create Account 
             </h1>
             <p className="font-mono text-[var(--color-muted)] text-sm">
               START TRACKING YOUR EXPENSES WITH AUTOLEDGER

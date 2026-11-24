@@ -27,6 +27,9 @@ import {
   File,
   Loader2,
   RotateCcw,
+  Camera,
+  X,
+  ExternalLink,
 } from "lucide-react";
 
 interface LedgerItem {
@@ -46,6 +49,8 @@ interface LedgerSummary {
   itemCount: number;
   highestExpense: { amount: number; category: string };
   averageSpend: number;
+  totalIncome: number;
+  incomeCount: number;
 }
 
 const DEFAULT_SUMMARY: LedgerSummary = {
@@ -53,6 +58,8 @@ const DEFAULT_SUMMARY: LedgerSummary = {
   itemCount: 0,
   highestExpense: { amount: 0, category: "NONE" },
   averageSpend: 0,
+  totalIncome: 0,
+  incomeCount: 0,
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -81,9 +88,52 @@ export default function LedgerPage() {
   const [summary, setSummary] = useState<LedgerSummary>(DEFAULT_SUMMARY);
   const [loading, setLoading] = useState(true);
 
+  const [previewTx, setPreviewTx] = useState<LedgerItem | null>(null);
+
+  const [editingTx, setEditingTx] = useState<LedgerItem | null>(null);
+  const [editType, setEditType] = useState<"EXPENSE" | "INCOME">("EXPENSE");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("FOOD");
+  const [editPaymentMethod, setEditPaymentMethod] = useState("UPI");
+  const [editNotes, setEditNotes] = useState("");
+  const [editIsDebt, setEditIsDebt] = useState(false);
+  const [editProofUrl, setEditProofUrl] = useState("");
+  const [proofError, setProofError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+
+  const closePreview = () => {
+    setPreviewTx(null);
+  };
+
+  const openProofInNewTab = (url?: string) => {
+    if (!url) return;
+
+    if (!url.startsWith("data:")) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      const [header, base64Data] = url.split(",");
+      const mimeMatch = header.match(/data:(.*?);base64/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+      const byteChars = atob(base64Data);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      console.error("Failed to open proof link:", err);
+    }
+  };
 
   const getDateBounds = (range: string): Record<string, string> => {
     const now = new Date();
@@ -151,7 +201,10 @@ export default function LedgerPage() {
           setCurrentPage(expensesRes.data.pagination?.page || targetPage);
           setTotalPages(Math.max(1, expensesRes.data.pagination?.totalPages || 1));
           setTotalItems(expensesRes.data.pagination?.total || 0);
-          setSummary(summaryRes.data.summary || DEFAULT_SUMMARY);
+          setSummary({
+            ...DEFAULT_SUMMARY,
+            ...(summaryRes.data.summary || {}),
+          });
         } else {
           const expensesRes = await api.get("/expenses", {
             params: { ...params, page: targetPage, limit: ITEMS_PER_PAGE },
@@ -173,8 +226,83 @@ export default function LedgerPage() {
 
   useEffect(() => {
     fetchLedgerData(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openEditModal = (tx: LedgerItem) => {
+    setEditingTx(tx);
+    setEditType(tx.type?.toUpperCase() === "INCOME" ? "INCOME" : "EXPENSE");
+    setEditAmount(String(tx.amount));
+    setEditCategory(tx.category || "FOOD");
+    setEditPaymentMethod(tx.paymentMethod || "UPI");
+    setEditNotes(tx.notes || "");
+    setEditIsDebt(Boolean(tx.isDebtRelated));
+    setEditProofUrl(tx.receiptUrl || "");
+    setProofError("");
+  };
+
+  const handleProofImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      e.target.value = "";
+      setProofError("Only image files (JPG, PNG, WEBP, etc.) are allowed.");
+      return;
+    }
+
+    setProofError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setEditProofUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx) return;
+    setSavingEdit(true);
+
+    const resolvedCategory = editType === "INCOME" ? "OTHER" : editCategory;
+
+    try {
+      const { data } = await api.put(`/expenses/${editingTx._id}`, {
+        type: editType,
+        amount: Number(editAmount || editingTx.amount),
+        category: resolvedCategory,
+        paymentMethod: editPaymentMethod,
+        notes: editNotes.trim() || (editType === "INCOME" ? "Income" : ""),
+        isDebtRelated: editType === "EXPENSE" ? editIsDebt : false,
+        receiptUrl: editProofUrl.trim(),
+      });
+
+      const updatedDoc: LedgerItem = data?.expense || {
+        ...editingTx,
+        type: editType,
+        amount: Number(editAmount || editingTx.amount),
+        category: resolvedCategory,
+        paymentMethod: editPaymentMethod,
+        notes: editNotes.trim() || (editType === "INCOME" ? "Income" : ""),
+        isDebtRelated: editType === "EXPENSE" ? editIsDebt : false,
+        receiptUrl: editProofUrl.trim(),
+      };
+
+      setTransactions((prev) =>
+        prev.map((item) => (item._id === editingTx._id ? updatedDoc : item))
+      );
+      if (previewTx?._id === editingTx._id) {
+        setPreviewTx(updatedDoc);
+      }
+      setEditingTx(null);
+      fetchLedgerData(currentPage, undefined, true);
+    } catch (error) {
+      console.error("Failed to update entry:", error);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const getExportPayload = async () => {
     if (exportScope === "CURRENT_VIEW") {
@@ -202,20 +330,39 @@ export default function LedgerPage() {
       };
     }
 
-    const rangeParams: Record<string, string> = { page: "1", limit: "500" };
-    if (customStartDate) {
-      rangeParams.startDate = new Date(`${customStartDate}T00:00:00`).toISOString();
+    let start = customStartDate;
+    let end = customEndDate;
+    if (start && end && start > end) {
+      [start, end] = [end, start];
     }
-    if (customEndDate) {
-      rangeParams.endDate = new Date(`${customEndDate}T23:59:59`).toISOString();
+
+    const rangeParams: Record<string, string> = { page: "1", limit: "500" };
+    if (start) {
+      rangeParams.startDate = new Date(`${start}T00:00:00.000`).toISOString();
+    }
+    if (end) {
+      rangeParams.endDate = new Date(`${end}T23:59:59.999`).toISOString();
     }
 
     const res = await api.get("/expenses", { params: rangeParams });
+    const rawItems = (res.data.data || []) as LedgerItem[];
+
+    const filteredItems = rawItems.filter((item) => {
+      const itemTime = new Date(item.date).getTime();
+      if (Number.isNaN(itemTime)) return true;
+      if (start && itemTime < new Date(`${start}T00:00:00.000`).getTime()) return false;
+      if (end && itemTime > new Date(`${end}T23:59:59.999`).getTime()) return false;
+      return true;
+    });
+
     return {
-      items: (res.data.data || []) as LedgerItem[],
-      scopeLabel: `Custom Range (${customStartDate || "Start"} → ${customEndDate || "End"})`,
-      filtersSummary: "Custom Date Range Export",
-      filePrefix: `autoledger-custom-range-${new Date().toISOString().slice(0, 10)}`,
+      items: filteredItems,
+      scopeLabel: `Custom Range (${start || "Beginning"} → ${end || "Today"})`,
+      filtersSummary:
+        start || end
+          ? `Date Window: ${start || "Start"} to ${end || "End"}`
+          : "All Recorded Transactions",
+      filePrefix: `autoledger-custom-${start || "all"}-to-${end || "now"}`,
     };
   };
 
@@ -240,6 +387,10 @@ export default function LedgerPage() {
           expensesOnly.length > 0
             ? Number((filteredTotal / expensesOnly.length).toFixed(2))
             : 0;
+        const totalIncome = items
+          .filter((i) => i.type?.toUpperCase() === "INCOME")
+          .reduce((acc, i) => acc + i.amount, 0);
+        const incomeCount = items.filter((i) => i.type?.toUpperCase() === "INCOME").length;
 
         exportLedgerAsPdfStatement(items, {
           scopeLabel,
@@ -251,6 +402,8 @@ export default function LedgerPage() {
             itemCount: expensesOnly.length,
             highestExpense,
             averageSpend,
+            totalIncome,
+            incomeCount,
           },
         });
       }
@@ -296,12 +449,20 @@ export default function LedgerPage() {
 
     const updatedTx = prevTx.filter((item) => item._id !== tx._id);
     const isExpense = tx.type?.toUpperCase() === "EXPENSE";
+    const isIncome = tx.type?.toUpperCase() === "INCOME";
+
     const nextTotalSpend = isExpense
       ? Math.max(0, prevSummary.filteredTotal - tx.amount)
       : prevSummary.filteredTotal;
     const nextItemCount = isExpense
       ? Math.max(0, prevSummary.itemCount - 1)
       : prevSummary.itemCount;
+    const nextTotalIncome = isIncome
+      ? Math.max(0, prevSummary.totalIncome - tx.amount)
+      : prevSummary.totalIncome;
+    const nextIncomeCount = isIncome
+      ? Math.max(0, prevSummary.incomeCount - 1)
+      : prevSummary.incomeCount;
 
     setTransactions(updatedTx);
     setTotalItems(Math.max(0, prevTotal - 1));
@@ -311,7 +472,12 @@ export default function LedgerPage() {
       itemCount: nextItemCount,
       averageSpend:
         nextItemCount > 0 ? Number((nextTotalSpend / nextItemCount).toFixed(2)) : 0,
+      totalIncome: nextTotalIncome,
+      incomeCount: nextIncomeCount,
     });
+    if (previewTx?._id === tx._id) {
+      closePreview();
+    }
 
     try {
       await api.delete(`/expenses/${tx._id}`);
@@ -335,12 +501,12 @@ export default function LedgerPage() {
 
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
   const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+  const previewIsIncome = previewTx?.type?.toUpperCase() === "INCOME";
 
   return (
     <div className="min-h-screen bg-[var(--color-coolwhite)] overflow-x-hidden">
       <Sidebar />
       <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-4 sm:pr-6 pb-12 lg:pr-10 overflow-x-hidden">
-        {/* 1. INLINE PAGE HEADER & EXPORT */}
         <header className="mb-8 pl-2 sm:pl-4 pr-1 sm:pr-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative">
           <div>
             <h1 className="font-sans text-3xl sm:text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
@@ -446,8 +612,7 @@ export default function LedgerPage() {
           </div>
         </header>
 
-        {/* 2. LIVE AGGREGATION STRIP */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-2 sm:pl-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pl-2 sm:pl-4 mb-8">
           <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] p-5 shadow-[4px_4px_0px_0px_var(--color-amber)] rounded-none">
             <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2 flex justify-between">
               {isFiltered ? "Filtered Spend" : "Total Spend"} <span>({summary.itemCount} items)</span>
@@ -457,6 +622,19 @@ export default function LedgerPage() {
                 <Loader2 className="w-6 h-6 text-[var(--color-amber)] animate-spin" />
               ) : (
                 `₹${summary.filteredTotal.toLocaleString("en-IN")}`
+              )}
+            </div>
+          </div>
+
+          <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] p-5 shadow-[4px_4px_0px_0px_#21A366] rounded-none">
+            <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2 flex justify-between">
+              Total Income <span>({summary.incomeCount} items)</span>
+            </h3>
+            <div className="font-sans text-3xl font-bold tracking-tight text-[#21A366]">
+              {loading ? (
+                <Loader2 className="w-6 h-6 text-[#21A366] animate-spin" />
+              ) : (
+                `+₹${summary.totalIncome.toLocaleString("en-IN")}`
               )}
             </div>
           </div>
@@ -493,7 +671,6 @@ export default function LedgerPage() {
           </div>
         </div>
 
-        {/* 3. TWO-TIER FILTER CONTROL BOX */}
         <div className="pl-2 sm:pl-4 mb-8">
           <form
             onSubmit={handleApplyFilters}
@@ -630,7 +807,6 @@ export default function LedgerPage() {
           </form>
         </div>
 
-        {/* 4. LEDGER TABLE + PAGINATION */}
         <div className="pl-2 sm:pl-4">
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[var(--shadow-brutal)] rounded-none overflow-hidden">
             <div className="overflow-x-auto">
@@ -641,7 +817,7 @@ export default function LedgerPage() {
                       Date
                     </th>
                     <th className="font-mono text-xs uppercase text-[var(--color-muted)] p-4 w-full">
-                      Note & Category
+                      Note & Tag
                     </th>
                     <th className="font-mono text-xs uppercase text-[var(--color-muted)] p-4 whitespace-nowrap">
                       Method
@@ -694,93 +870,101 @@ export default function LedgerPage() {
                       </td>
                     </tr>
                   ) : (
-                    transactions.map((tx) => (
-                      <tr
-                        key={tx._id}
-                        className="hover:bg-[var(--color-charcoal)] transition-colors group"
-                      >
-                        <td className="p-4 whitespace-nowrap">
-                          <div className="font-mono text-xs text-[var(--color-coolwhite)] flex items-center gap-2">
-                            <Calendar className="w-3 h-3 text-[var(--color-muted)]" />
-                            {formatDate(tx.date)}
-                          </div>
-                        </td>
-
-                        <td className="p-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                            <span className="font-sans text-[var(--color-coolwhite)] font-medium">
-                              {tx.notes || tx.category}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="bg-zinc-800 text-[var(--color-amber)] font-mono text-[10px] px-2 py-0.5 uppercase border border-zinc-700">
-                                {tx.category}
-                              </span>
-                              {tx.isDebtRelated && (
-                                <span className="bg-[var(--color-crimson)]/10 text-[var(--color-crimson)] font-mono text-[10px] px-2 py-0.5 uppercase border border-[var(--color-crimson)]/30">
-                                  Debt
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="p-4">
-                          <span className="font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-1">
-                            {tx.paymentMethod}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          {tx.receiptUrl ? (
-                            <a
-                              href={tx.receiptUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[var(--color-amber)] hover:text-white font-mono text-[10px] uppercase border border-[var(--color-amber)]/30 px-2 py-1 transition-colors"
-                            >
-                              <Receipt className="w-3 h-3" /> View Bill
-                            </a>
-                          ) : (
-                            <span className="text-[var(--color-muted)]">-</span>
-                          )}
-                        </td>
-
-                        <td
-                          className={`p-4 text-right font-mono font-bold whitespace-nowrap ${tx.type === "INCOME"
-                              ? "text-[#21A366]"
-                              : "text-[var(--color-coolwhite)]"
-                            }`}
+                    transactions.map((tx) => {
+                      const isIncome = tx.type?.toUpperCase() === "INCOME";
+                      return (
+                        <tr
+                          key={tx._id}
+                          onClick={() => setPreviewTx(tx)}
+                          className="hover:bg-[var(--color-charcoal)] transition-colors group cursor-pointer"
                         >
-                          {tx.type === "INCOME" ? "+" : "-"}₹{tx.amount.toLocaleString("en-IN")}
-                        </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="font-mono text-xs text-[var(--color-coolwhite)] flex items-center gap-2">
+                              <Calendar className="w-3 h-3 text-[var(--color-muted)]" />
+                              {formatDate(tx.date)}
+                            </div>
+                          </td>
 
-                        <td className="p-4">
-                          <div className="flex items-center justify-center gap-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              className="text-[var(--color-muted)] hover:text-[var(--color-coolwhite)] transition-colors cursor-pointer"
-                              title="Edit Entry"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(tx)}
-                              className="text-[var(--color-muted)] hover:text-[var(--color-crimson)] transition-colors cursor-pointer"
-                              title="Delete Entry"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          <td className="p-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                              <span className="font-sans text-[var(--color-coolwhite)] font-medium">
+                                {tx.notes || (isIncome ? "Income" : tx.category)}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {isIncome ? (
+                                  <span className="bg-[#21A366]/15 text-[#21A366] font-mono text-[10px] px-2 py-0.5 uppercase border border-[#21A366]/40">
+                                    Income
+                                  </span>
+                                ) : (
+                                  <span className="bg-zinc-800 text-[var(--color-amber)] font-mono text-[10px] px-2 py-0.5 uppercase border border-zinc-700">
+                                    {tx.category}
+                                  </span>
+                                )}
+                                {!isIncome && tx.isDebtRelated && (
+                                  <span className="bg-[var(--color-crimson)]/10 text-[var(--color-crimson)] font-mono text-[10px] px-2 py-0.5 uppercase border border-[var(--color-crimson)]/30">
+                                    Debt
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            <span className="font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-1">
+                              {tx.paymentMethod}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            {tx.receiptUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewTx(tx)}
+                                className="inline-flex items-center gap-1 text-[var(--color-amber)] hover:text-white font-mono text-[10px] uppercase border border-[var(--color-amber)]/30 px-2 py-1 transition-colors cursor-pointer"
+                              >
+                                <Receipt className="w-3 h-3" /> View Bill
+                              </button>
+                            ) : (
+                              <span className="text-[var(--color-muted)]">-</span>
+                            )}
+                          </td>
+
+                          <td
+                            className={`p-4 text-right font-mono font-bold whitespace-nowrap ${
+                              isIncome ? "text-[#21A366]" : "text-[var(--color-coolwhite)]"
+                            }`}
+                          >
+                            {isIncome ? "+" : "-"}₹{tx.amount.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(tx)}
+                                className="text-[var(--color-muted)] hover:text-[var(--color-coolwhite)] transition-colors cursor-pointer"
+                                title="Edit Entry & Proof"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(tx)}
+                                className="text-[var(--color-muted)] hover:text-[var(--color-crimson)] transition-colors cursor-pointer"
+                                title="Delete Entry"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination Footer */}
             {totalItems > 0 && (
               <div className="flex flex-col items-center justify-center gap-2.5 px-4 py-4 border-t-2 border-zinc-800 bg-zinc-900/50">
                 <div className="flex items-center gap-2">
@@ -816,6 +1000,322 @@ export default function LedgerPage() {
             )}
           </div>
         </div>
+
+        {previewTx && (
+          <div
+            onClick={closePreview}
+            className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 sm:p-6"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] shadow-none p-6 sm:p-8 flex flex-col gap-6"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-zinc-800 pb-4">
+                <div>
+                  <span className="font-mono text-[11px] uppercase text-[var(--color-amber)] block">
+                    {previewIsIncome ? "Income Detail Preview" : "Expense Detail Preview"}
+                  </span>
+                  <h2 className="font-sans text-2xl sm:text-3xl font-bold uppercase mt-1">
+                    {previewTx.notes || (previewIsIncome ? "Income" : previewTx.category)}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  className="p-2 border border-zinc-800 text-[var(--color-muted)] hover:text-white hover:border-[var(--color-amber)] cursor-pointer"
+                  aria-label="Close preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className={`grid grid-cols-2 ${previewIsIncome ? "sm:grid-cols-3" : "sm:grid-cols-4"} gap-4 border-b border-zinc-800 pb-5`}>
+                <div className="bg-[var(--color-charcoal)] border border-zinc-800 p-3.5">
+                  <div className="font-mono text-[10px] uppercase text-[var(--color-muted)]">
+                    Amount
+                  </div>
+                  <div
+                    className={`font-mono text-lg font-bold mt-1 ${
+                      previewIsIncome ? "text-[#21A366]" : "text-[var(--color-amber)]"
+                    }`}
+                  >
+                    {previewIsIncome ? "+" : "-"}₹
+                    {previewTx.amount.toLocaleString("en-IN")}
+                  </div>
+                </div>
+
+                {!previewIsIncome && (
+                  <div className="bg-[var(--color-charcoal)] border border-zinc-800 p-3.5">
+                    <div className="font-mono text-[10px] uppercase text-[var(--color-muted)]">
+                      Category
+                    </div>
+                    <div className="font-mono text-sm font-bold uppercase mt-1">
+                      {previewTx.category}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-[var(--color-charcoal)] border border-zinc-800 p-3.5">
+                  <div className="font-mono text-[10px] uppercase text-[var(--color-muted)]">
+                    Method
+                  </div>
+                  <div className="font-mono text-sm font-bold uppercase mt-1">
+                    {previewTx.paymentMethod}
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-charcoal)] border border-zinc-800 p-3.5">
+                  <div className="font-mono text-[10px] uppercase text-[var(--color-muted)]">
+                    Date
+                  </div>
+                  <div className="font-mono text-sm font-bold mt-1">
+                    {formatDate(previewTx.date)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs uppercase text-[var(--color-muted)]">
+                    Proof / Receipt Image
+                  </span>
+                  {previewTx.receiptUrl && (
+                    <button
+                      type="button"
+                      onClick={() => openProofInNewTab(previewTx.receiptUrl)}
+                      className="inline-flex items-center gap-1.5 font-mono text-xs uppercase text-[var(--color-amber)] hover:underline cursor-pointer"
+                    >
+                      Open Full Image <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {previewTx.receiptUrl ? (
+                  <div className="w-full bg-[var(--color-charcoal)] border border-zinc-800 p-3 flex items-center justify-center">
+                    <img
+                      src={previewTx.receiptUrl}
+                      alt={previewTx.notes || previewTx.category}
+                      className="w-full max-h-[420px] object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full bg-[var(--color-charcoal)] border border-dashed border-zinc-800 py-10 px-4 text-center font-mono text-xs text-[var(--color-muted)]">
+                    No proof image attached to this entry.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewTx;
+                    closePreview();
+                    openEditModal(target);
+                  }}
+                  className="px-4 py-2 font-mono text-xs uppercase bg-[var(--color-charcoal)] text-[var(--color-coolwhite)] border border-zinc-700 hover:border-[var(--color-amber)] cursor-pointer"
+                >
+                  Edit Entry
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  className="px-5 py-2 font-sans text-xs font-bold uppercase bg-[var(--color-amber)] text-[var(--color-vanta)] border border-[var(--color-amber)] cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editingTx && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+            <form
+              onSubmit={handleSaveEdit}
+              className="w-full max-w-md bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] shadow-[6px_6px_0px_0px_var(--color-amber)] p-5 flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h2 className="font-sans text-base font-bold uppercase">Edit Entry & Proof</h2>
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="text-[var(--color-muted)] hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex border border-zinc-800 bg-[var(--color-charcoal)]">
+                <button
+                  type="button"
+                  onClick={() => setEditType("EXPENSE")}
+                  className={`flex-1 py-2 font-mono text-xs uppercase font-bold cursor-pointer ${
+                    editType === "EXPENSE"
+                      ? "bg-[var(--color-amber)] text-[var(--color-vanta)]"
+                      : "text-[var(--color-muted)] hover:text-white"
+                  }`}
+                >
+                  Expense
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditType("INCOME");
+                    setEditIsDebt(false);
+                  }}
+                  className={`flex-1 py-2 font-mono text-xs uppercase font-bold cursor-pointer ${
+                    editType === "INCOME"
+                      ? "bg-[#21A366] text-white"
+                      : "text-[var(--color-muted)] hover:text-white"
+                  }`}
+                >
+                  Income
+                </button>
+              </div>
+
+              <div className={`grid ${editType === "EXPENSE" ? "grid-cols-2" : "grid-cols-1"} gap-3`}>
+                <div>
+                  <label className="font-mono text-[10px] uppercase text-[var(--color-muted)] block mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    className="w-full bg-[var(--color-charcoal)] border border-zinc-800 px-3 py-2 font-mono text-xs focus:outline-none focus:border-[var(--color-amber)]"
+                  />
+                </div>
+                {editType === "EXPENSE" && (
+                  <div>
+                    <label className="font-mono text-[10px] uppercase text-[var(--color-muted)] block mb-1">
+                      Category
+                    </label>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full bg-[var(--color-charcoal)] border border-zinc-800 px-3 py-2 font-mono text-xs focus:outline-none focus:border-[var(--color-amber)]"
+                    >
+                      <option value="FOOD">FOOD</option>
+                      <option value="TRAVEL">TRAVEL</option>
+                      <option value="BILLS">BILLS</option>
+                      <option value="SHOPPING">SHOPPING</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className={`grid ${editType === "EXPENSE" ? "grid-cols-2" : "grid-cols-1"} gap-3`}>
+                <div>
+                  <label className="font-mono text-[10px] uppercase text-[var(--color-muted)] block mb-1">
+                    Method
+                  </label>
+                  <select
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value)}
+                    className="w-full bg-[var(--color-charcoal)] border border-zinc-800 px-3 py-2 font-mono text-xs focus:outline-none focus:border-[var(--color-amber)]"
+                  >
+                    <option value="UPI">UPI</option>
+                    <option value="CASH">CASH</option>
+                    <option value="CARD">CARD</option>
+                  </select>
+                </div>
+                {editType === "EXPENSE" && (
+                  <div className="flex items-end pb-2">
+                    <label className="inline-flex items-center gap-2 font-mono text-xs uppercase text-[var(--color-muted)] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editIsDebt}
+                        onChange={(e) => setEditIsDebt(e.target.checked)}
+                        className="accent-[var(--color-amber)]"
+                      />
+                      Debt Related
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="font-mono text-[10px] uppercase text-[var(--color-muted)] block mb-1">
+                  {editType === "INCOME" ? "Source / Note" : "Note"}
+                </label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder={editType === "INCOME" ? "Salary, refund, allowance..." : "Expense note..."}
+                  className="w-full bg-[var(--color-charcoal)] border border-zinc-800 px-3 py-2 font-mono text-xs focus:outline-none focus:border-[var(--color-amber)]"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-mono text-[10px] uppercase text-[var(--color-muted)]">
+                    Receipt Proof (Upload / Capture Image Only)
+                  </label>
+                  {editProofUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditProofUrl("");
+                        setProofError("");
+                      }}
+                      className="font-mono text-[10px] uppercase text-[var(--color-crimson)] hover:underline cursor-pointer"
+                    >
+                      Remove Proof
+                    </button>
+                  )}
+                </div>
+                <label className="flex items-center justify-center gap-2 w-full bg-[var(--color-charcoal)] border border-dashed border-zinc-700 hover:border-[var(--color-amber)] py-2.5 px-3 font-mono text-xs text-[var(--color-coolwhite)] cursor-pointer">
+                  <Camera className="w-4 h-4 text-[var(--color-amber)]" />
+                  <span>{editProofUrl ? "Change Proof Image" : "Capture or Choose Image"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleProofImageChange}
+                    className="hidden"
+                  />
+                </label>
+                {proofError && (
+                  <p className="mt-1.5 font-mono text-[11px] text-[var(--color-crimson)]">
+                    {proofError}
+                  </p>
+                )}
+                {editProofUrl && (
+                  <div className="mt-2.5 bg-[var(--color-charcoal)] border border-zinc-800 p-2 flex items-center justify-center">
+                    <img
+                      src={editProofUrl}
+                      alt="Proof preview"
+                      className="max-h-36 object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="px-4 py-2 font-mono text-xs uppercase bg-[var(--color-charcoal)] text-[var(--color-muted)] hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-4 py-2 font-sans text-xs font-bold uppercase bg-[var(--color-amber)] text-[var(--color-vanta)] border border-[var(--color-amber)] cursor-pointer disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  {savingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );

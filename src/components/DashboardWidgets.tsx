@@ -10,6 +10,7 @@ import { expenseAdded, expenseFailed } from "@/lib/notifyAction";
 import EmptyActivityIllustration from "@/components/EmptyActivityIllustration";
 
 export default function DashboardWidgets() {
+  const [entryType, setEntryType] = useState<"EXPENSE" | "INCOME">("EXPENSE");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("FOOD");
   const [mode, setMode] = useState("UPI");
@@ -31,6 +32,7 @@ export default function DashboardWidgets() {
 
     const numericAmount = Number(amount);
     const trimmedNote = note.trim();
+    const resolvedCategory = entryType === "INCOME" ? "OTHER" : category;
 
     setLoading(true);
     setError("");
@@ -38,15 +40,21 @@ export default function DashboardWidgets() {
     try {
       await api.post("/expenses", {
         amount: numericAmount,
-        type: "EXPENSE",
-        category,
+        type: entryType,
+        category: resolvedCategory,
         paymentMethod: mode,
-        notes: trimmedNote,
-        isDebtRelated: isDebt,
+        notes: trimmedNote || (entryType === "INCOME" ? "Income" : ""),
+        isDebtRelated: entryType === "EXPENSE" ? isDebt : false,
       });
 
       expenseAdded(
-        `₹${numericAmount.toLocaleString("en-IN")} • ${category}${trimmedNote ? ` (${trimmedNote})` : ""}`
+        `${entryType === "INCOME" ? "+" : ""}₹${numericAmount.toLocaleString("en-IN")}${
+          entryType === "INCOME"
+            ? trimmedNote
+              ? ` • ${trimmedNote}`
+              : " • INCOME"
+            : ` • ${category}${trimmedNote ? ` (${trimmedNote})` : ""}`
+        }`
       );
 
       setAmount("");
@@ -55,7 +63,7 @@ export default function DashboardWidgets() {
 
       await refreshDashboardData();
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Failed to log expense";
+      const msg = err.response?.data?.message || "Failed to log entry";
       setError(msg);
       expenseFailed(msg);
     } finally {
@@ -66,14 +74,14 @@ export default function DashboardWidgets() {
   const handleDeleteExpense = async (item: ExpenseItem) => {
     const confirmed = await confirmPopup(
       `Delete "${item.notes || item.category}" (₹${item.amount}) permanently?`,
-      "Delete Expense"
+      "Delete Entry"
     );
     if (!confirmed) return;
 
     try {
       await deleteExpense(item);
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Failed to delete expense";
+      const msg = err.response?.data?.message || "Failed to delete entry";
       setError(msg);
       expenseFailed(msg);
     }
@@ -81,8 +89,6 @@ export default function DashboardWidgets() {
 
   return (
     <div className="flex flex-col gap-6 mt-6 w-full">
-
-      {/* 1. QUICK MANUAL ENTRY BAR */}
       <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-4 shadow-[var(--shadow-brutal)]">
         {error && (
           <div className="text-[var(--color-crimson)] font-mono text-xs mb-3">
@@ -90,6 +96,34 @@ export default function DashboardWidgets() {
           </div>
         )}
         <form className="flex flex-col md:flex-row items-center gap-3 w-full" onSubmit={handleLogExpense}>
+          <div className="flex w-full md:w-auto border border-zinc-800 bg-[var(--color-charcoal)] flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setEntryType("EXPENSE")}
+              className={`px-3 py-3 font-mono text-xs uppercase font-bold cursor-pointer transition-colors ${
+                entryType === "EXPENSE"
+                  ? "bg-[var(--color-amber)] text-[var(--color-vanta)]"
+                  : "text-[var(--color-muted)] hover:text-white"
+              }`}
+            >
+              Expense
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEntryType("INCOME");
+                setIsDebt(false);
+              }}
+              className={`px-3 py-3 font-mono text-xs uppercase font-bold cursor-pointer transition-colors ${
+                entryType === "INCOME"
+                  ? "bg-[#21A366] text-white"
+                  : "text-[var(--color-muted)] hover:text-white"
+              }`}
+            >
+              Income
+            </button>
+          </div>
+
           <div className="relative w-full md:w-32 flex-shrink-0">
             <span className="absolute left-3 top-3 font-mono text-[var(--color-muted)]">₹</span>
             <input
@@ -102,16 +136,19 @@ export default function DashboardWidgets() {
             />
           </div>
 
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full md:w-40 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none appearance-none"
-          >
-            <option value="FOOD">FOOD</option>
-            <option value="TRAVEL">TRAVEL</option>
-            <option value="BILLS">BILLS</option>
-            <option value="SHOPPING">SHOPPING</option>
-          </select>
+          {entryType === "EXPENSE" && (
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full md:w-40 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none appearance-none"
+            >
+              <option value="FOOD">FOOD</option>
+              <option value="TRAVEL">TRAVEL</option>
+              <option value="BILLS">BILLS</option>
+              <option value="SHOPPING">SHOPPING</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          )}
 
           <select
             value={mode}
@@ -125,21 +162,23 @@ export default function DashboardWidgets() {
 
           <input
             type="text"
-            placeholder="Note (Optional)"
+            placeholder={entryType === "INCOME" ? "Source / Note (e.g. Salary, Refund)" : "Note (Optional)"}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             className="w-full flex-1 bg-[var(--color-charcoal)] border border-zinc-800 text-[var(--color-coolwhite)] font-mono py-3 px-3 focus:outline-none focus:border-[var(--color-amber)] rounded-none"
           />
 
-          <label className="flex items-center gap-2 cursor-pointer font-mono text-sm uppercase text-[var(--color-muted)] hover:text-white transition-colors select-none">
-            <input
-              type="checkbox"
-              checked={isDebt}
-              onChange={(e) => setIsDebt(e.target.checked)}
-              className="w-5 h-5 accent-[var(--color-amber)] bg-[var(--color-charcoal)] border-zinc-800 rounded-none cursor-pointer"
-            />
-            Debt?
-          </label>
+          {entryType === "EXPENSE" && (
+            <label className="flex items-center gap-2 cursor-pointer font-mono text-sm uppercase text-[var(--color-muted)] hover:text-white transition-colors select-none">
+              <input
+                type="checkbox"
+                checked={isDebt}
+                onChange={(e) => setIsDebt(e.target.checked)}
+                className="w-5 h-5 accent-[var(--color-amber)] bg-[var(--color-charcoal)] border-zinc-800 rounded-none cursor-pointer"
+              />
+              Debt?
+            </label>
+          )}
 
           <button
             type="submit"
@@ -147,14 +186,12 @@ export default function DashboardWidgets() {
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[var(--color-amber)] text-[var(--color-vanta)] font-sans font-bold uppercase py-3 px-6 border-2 border-[var(--color-amber)] hover:-translate-y-[2px] hover:-translate-x-[2px] shadow-[4px_4px_0px_0px_rgba(234,88,12,0.4)] hover:shadow-[4px_4px_0px_0px_rgba(234,88,12,1)] transition-all cursor-pointer disabled:opacity-70"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" strokeWidth={3} /> : <Plus className="w-5 h-5" strokeWidth={3} />}
-            Log Expense
+            {entryType === "INCOME" ? "Add Income" : "Log Expense"}
           </button>
         </form>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* 2. RECENT ACTIVITY */}
         <div className="lg:col-span-2 bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] flex flex-col shadow-[var(--shadow-brutal)]">
           <div className="p-5 border-b border-zinc-800 flex justify-between items-center">
             <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">
@@ -165,7 +202,7 @@ export default function DashboardWidgets() {
           <div className="flex flex-col flex-1">
             {listLoading ? (
               <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase animate-pulse">
-                Loading expenses...
+                Loading activity...
               </div>
             ) : recentExpenses.length === 0 ? (
               <div className="flex-1 px-4 py-8 sm:py-10 flex flex-col items-center justify-center text-center gap-3">
@@ -174,44 +211,53 @@ export default function DashboardWidgets() {
                   No Recent Activity
                 </h3>
                 <p className="font-mono text-xs text-[var(--color-muted)] max-w-sm">
-                  Log your first expense above to track daily spend and burn rate.
+                  Log your first expense or income above to track daily spend and burn rate.
                 </p>
               </div>
             ) : (
-              recentExpenses.map((item) => (
-                <div key={item._id} className="group flex items-center justify-between p-4 border-b border-zinc-800/50 hover:bg-[var(--color-charcoal)] transition-colors">
-                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <span className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-mono text-xs px-2 py-1 uppercase font-bold border border-zinc-700 flex-shrink-0">
-                      {item.category}
-                    </span>
-                    <span className="font-sans text-[var(--color-coolwhite)] truncate">
-                      {item.notes || item.category}
-                    </span>
-                    {item.paymentMethod && (
-                      <span className="hidden sm:inline-block font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-0.5 flex-shrink-0">
-                        {item.paymentMethod}
+              recentExpenses.map((item) => {
+                const isIncome = item.type?.toUpperCase() === "INCOME";
+                return (
+                  <div key={item._id} className="group flex items-center justify-between p-4 border-b border-zinc-800/50 hover:bg-[var(--color-charcoal)] transition-colors">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      {isIncome ? (
+                        <span className="bg-[#21A366]/15 text-[#21A366] font-mono text-xs px-2 py-1 uppercase font-bold border border-[#21A366]/40 flex-shrink-0">
+                          Income
+                        </span>
+                      ) : (
+                        <span className="bg-[var(--color-charcoal)] text-[var(--color-amber)] font-mono text-xs px-2 py-1 uppercase font-bold border border-zinc-700 flex-shrink-0">
+                          {item.category}
+                        </span>
+                      )}
+                      <span className="font-sans text-[var(--color-coolwhite)] truncate">
+                        {item.notes || (isIncome ? "Income" : item.category)}
                       </span>
-                    )}
-                    {item.isDebtRelated && (
-                      <span className="font-mono text-[10px] text-[var(--color-crimson)] border border-[var(--color-crimson)] px-1.5 py-0.5 uppercase flex-shrink-0">
-                        Debt
+                      {item.paymentMethod && (
+                        <span className="hidden sm:inline-block font-mono text-xs text-[var(--color-muted)] border border-zinc-800 px-2 py-0.5 flex-shrink-0">
+                          {item.paymentMethod}
+                        </span>
+                      )}
+                      {!isIncome && item.isDebtRelated && (
+                        <span className="font-mono text-[10px] text-[var(--color-crimson)] border border-[var(--color-crimson)] px-1.5 py-0.5 uppercase flex-shrink-0">
+                          Debt
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                      <span className={`font-mono font-bold ${isIncome ? "text-[#21A366]" : "text-[var(--color-coolwhite)]"}`}>
+                        {isIncome ? "+" : ""}₹{item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
-                    )}
+                      <button
+                        onClick={() => handleDeleteExpense(item)}
+                        title="Delete Entry"
+                        className="text-zinc-600 hover:text-[var(--color-crimson)] transition-colors sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 flex-shrink-0 ml-2">
-                    <span className="font-mono font-bold text-[var(--color-coolwhite)]">
-                      ₹{item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteExpense(item)}
-                      title="Delete Expense"
-                      className="text-zinc-600 hover:text-[var(--color-crimson)] transition-colors sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -222,10 +268,7 @@ export default function DashboardWidgets() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: ANALYTICS & ALERTS */}
         <div className="lg:col-span-1 flex flex-col gap-6">
-
-          {/* 3. Safe-To-Spend & Burn Rate */}
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-5 shadow-[var(--shadow-brutal)]">
             <h3 className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-4">
               <Target className="w-4 h-4 text-[var(--color-amber)]" /> Burn Rate Analysis
@@ -255,7 +298,6 @@ export default function DashboardWidgets() {
             </div>
           </div>
 
-          {/* 4. Top Drain & Pending Debts Alert */}
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] p-5 shadow-[var(--shadow-brutal)] flex flex-col gap-5">
             <div className="border-b border-zinc-800 pb-4">
               <div className="font-sans font-bold text-sm uppercase text-[var(--color-muted)] flex items-center gap-2 mb-2">
@@ -288,7 +330,6 @@ export default function DashboardWidgets() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

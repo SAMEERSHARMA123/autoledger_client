@@ -61,7 +61,7 @@ export default function DashboardPulse() {
           <div className="border-b border-zinc-800 pb-4 mb-6 flex justify-between items-center">
             <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)] flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-[var(--color-amber)]" />
-              7-Day Pulse //
+              7-Day Pulse 
             </h2>
             <span className="font-mono text-xs text-[var(--color-muted)] uppercase border border-zinc-800 px-2 py-1">
               Last 7 Days
