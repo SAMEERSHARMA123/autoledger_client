@@ -73,7 +73,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           <Loader2 className="animate-spin text-[var(--color-amber)] h-12 w-12" />
           <div className="text-center">
             <p className="font-mono text-[var(--color-amber)] text-xs uppercase tracking-widest animate-pulse">
-              Verifying ...
+              Loading ...
             </p>
           </div>
         </div>

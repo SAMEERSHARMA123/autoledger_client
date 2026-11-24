@@ -355,7 +355,7 @@ export default function DebtsPage() {
       <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-6 pb-12 lg:pr-10">
         <header className="mb-8 pl-4 pr-2">
           <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
-            Debts & Settlements //
+            Debts & Settlements 
           </h1>
           <p className="font-mono text-sm text-[var(--color-muted)] mt-1 uppercase">
             Track lent & borrowed money by person

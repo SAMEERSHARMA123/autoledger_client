@@ -337,21 +337,21 @@ export default function LedgerPage() {
   const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
 
   return (
-    <div className="min-h-screen bg-[var(--color-coolwhite)]">
+    <div className="min-h-screen bg-[var(--color-coolwhite)] overflow-x-hidden">
       <Sidebar />
-      <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-6 pb-12 lg:pr-10">
+      <main className="transition-all duration-300 ease-in-out md:pl-24 pt-10 pr-4 sm:pr-6 pb-12 lg:pr-10 overflow-x-hidden">
         {/* 1. INLINE PAGE HEADER & EXPORT */}
-        <header className="mb-8 pl-4 pr-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative">
+        <header className="mb-8 pl-2 sm:pl-4 pr-1 sm:pr-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative">
           <div>
-            <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
-              Ledger History //
+            <h1 className="font-sans text-3xl sm:text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
+              Ledger History
             </h1>
-            <p className="font-mono text-sm text-[var(--color-muted)] mt-1 uppercase">
+            <p className="font-mono text-xs sm:text-sm text-[var(--color-muted)] mt-1 uppercase">
               Complete transaction logs & aggregations
             </p>
           </div>
 
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               type="button"
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -363,7 +363,7 @@ export default function LedgerPage() {
             </button>
 
             {showExportMenu && (
-              <div className="absolute right-0 top-14 w-80 bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[4px_4px_0px_0px_var(--color-amber)] z-50 p-5">
+              <div className="absolute left-0 sm:left-auto sm:right-0 top-14 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[4px_4px_0px_0px_var(--color-amber)] z-50 p-5">
                 <div className="mb-4 pb-4 border-b border-zinc-800">
                   <span className="font-mono text-xs text-[var(--color-muted)] uppercase block mb-3">
                     Data Scope
@@ -447,7 +447,7 @@ export default function LedgerPage() {
         </header>
 
         {/* 2. LIVE AGGREGATION STRIP */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-2 sm:pl-4 mb-8">
           <div className="bg-[var(--color-vanta)] text-[var(--color-coolwhite)] border-2 border-[var(--color-charcoal)] p-5 shadow-[4px_4px_0px_0px_var(--color-amber)] rounded-none">
             <h3 className="font-mono text-xs uppercase text-[var(--color-muted)] mb-2 flex justify-between">
               {isFiltered ? "Filtered Spend" : "Total Spend"} <span>({summary.itemCount} items)</span>
@@ -494,7 +494,7 @@ export default function LedgerPage() {
         </div>
 
         {/* 3. TWO-TIER FILTER CONTROL BOX */}
-        <div className="pl-4 mb-8">
+        <div className="pl-2 sm:pl-4 mb-8">
           <form
             onSubmit={handleApplyFilters}
             className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[var(--shadow-brutal)] flex flex-col rounded-none"
@@ -631,7 +631,7 @@ export default function LedgerPage() {
         </div>
 
         {/* 4. LEDGER TABLE + PAGINATION */}
-        <div className="pl-4">
+        <div className="pl-2 sm:pl-4">
           <div className="bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] shadow-[var(--shadow-brutal)] rounded-none overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -671,11 +671,9 @@ export default function LedgerPage() {
                     <tr>
                       <td colSpan={6} className="px-4 py-12 sm:py-16">
                         <div className="max-w-md mx-auto flex flex-col items-center text-center gap-3">
-                          <div className="bg-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] p-3 shadow-[3px_3px_0px_0px_var(--color-amber)]">
-                            <EmptyLedgerIllustration className="w-32 h-32 sm:w-40 sm:h-40 shrink-0" />
-                          </div>
+                          <EmptyLedgerIllustration className="w-32 h-32 sm:w-44 sm:h-44 shrink-0" />
                           <h3 className="font-sans text-base sm:text-lg font-bold uppercase text-[var(--color-coolwhite)]">
-                            No Ledger History Yet 
+                            No Ledger History Yet
                           </h3>
                           <p className="font-mono text-xs text-[var(--color-muted)]">
                             {isFiltered

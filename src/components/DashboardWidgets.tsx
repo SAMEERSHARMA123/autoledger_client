@@ -158,22 +158,20 @@ export default function DashboardWidgets() {
         <div className="lg:col-span-2 bg-[var(--color-vanta)] border-2 border-[var(--color-charcoal)] flex flex-col shadow-[var(--shadow-brutal)]">
           <div className="p-5 border-b border-zinc-800 flex justify-between items-center">
             <h2 className="font-sans font-bold text-lg uppercase tracking-wide text-[var(--color-coolwhite)]">
-              Recent Activity //
+              Recent Activity
             </h2>
           </div>
 
-          <div className="flex flex-col flex-1 justify-center">
+          <div className="flex flex-col flex-1">
             {listLoading ? (
               <div className="p-8 text-center font-mono text-xs text-[var(--color-muted)] uppercase animate-pulse">
                 Loading expenses...
               </div>
             ) : recentExpenses.length === 0 ? (
-              <div className="px-4 py-8 sm:py-10 flex flex-col items-center text-center gap-3">
-                <div className="bg-[var(--color-coolwhite)] border-2 border-[var(--color-amber)] p-3 shadow-[3px_3px_0px_0px_var(--color-amber)]">
-                  <EmptyActivityIllustration className="w-32 h-32 sm:w-40 sm:h-40 shrink-0" />
-                </div>
+              <div className="flex-1 px-4 py-8 sm:py-10 flex flex-col items-center justify-center text-center gap-3">
+                <EmptyActivityIllustration className="w-32 h-32 sm:w-40 sm:h-40 shrink-0" />
                 <h3 className="font-sans text-sm sm:text-base font-bold uppercase text-[var(--color-coolwhite)]">
-                  No Recent Activity 
+                  No Recent Activity
                 </h3>
                 <p className="font-mono text-xs text-[var(--color-muted)] max-w-sm">
                   Log your first expense above to track daily spend and burn rate.
@@ -217,7 +215,7 @@ export default function DashboardWidgets() {
             )}
           </div>
 
-          <div className="p-4 flex justify-end bg-[var(--color-charcoal)]/30">
+          <div className="mt-auto p-4 flex justify-end bg-[var(--color-charcoal)]/30">
             <Link href="/ledger" className="flex items-center gap-2 font-mono text-xs uppercase text-[var(--color-amber)] hover:text-white transition-colors font-bold tracking-widest">
               View All Ledger <ArrowRight className="w-4 h-4" />
             </Link>

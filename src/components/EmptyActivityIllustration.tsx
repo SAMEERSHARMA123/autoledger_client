@@ -15,14 +15,14 @@ export default function EmptyActivityIllustration({
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* Outlines & Dark Details (Theme Vanta) */}
+      {/* 1. Base Silhouette & Outlines */}
       <path
         transform="translate(571,164)"
         d="m0 0 6 1 7 7 7 11 4 16v10l-4 16-3 8 12-5 10-6 13-12 4 1 6 8 5 14 2 15-1 14-4 15-8 17-9 12-11 11-16 10-12 5 6 40 5 33 2 16v37l-5 22-7 16-7 10-9 10-8 7-11 7-19 7-17 3-20 1-3 13 41 1 41 3 46 6 35 6 17 3 13-14 9-11 12-14 11-14 11-13 21-27 24-32 8-12 13-18 10-14 9-11 9-10 12-12 15-11 19-10 15-5 13-3 8-1h21l20 4 15 6 12 7 11 9 9 10 3 5v2l8-2 8-1h28l16 4 14 7 13 10 10 12 6 10 6 18 1 4v7l55-7h16l13 5 7 7 5 9 1 4v13l-9 49-12 65-18 106-15 91-5 30-4 13-7 9-5 5-10 6-7 2h-283l-9-3-8-6-6-9-2-9 2-16 13-61 19-88 3-17-10 13-8 10-9 10-7 8-8 8h-2l-2 4-11 9-14 11-9 6-19 12-24 13-24 12-34 14-44 15-21 6h-3l-3 25-6 58-3 33-2 37v28l2 23 4 20 6 20 11 25 10 18v3l-100 1h-332l-21-2-17-5-16-8-16-11-15-15-12-18-8-15-8-24-4-23-1-13v-17l2-22 6-31 9-37 15-55 14-45 10-27 8-19 13-25 11-17 9-12 9-11 12-13 12-11 17-13 15-9 19-10 28-11 21-6 27-6 10-2 9-4 6-3 7-28 2-13-19-14-17-16-7-7-7-8-11-14-10-14-10-16-7-11-11-22-6-18-2-10v-27l4-18 4-12 8-16 10-15 11-13 12-11 13-9 16-8 16-5 5-1h25l15 3 9-16 10-13 11-11 15-10 16-7 14-3h17l16 4 12 5 19 9 7 2h13l12-4 10-7 8-8 4-6zm365 269-9 2-3 8-4 7-6 7-15 9-13 5-13 3-13 2-7 10-9 14v3l15 11h3l5-12 7-9 11-7 9-3 34-5 3-1 1-22 2-12 3-10z"
-        fill="var(--color-vanta)"
+        fill="#0D0C0A"
       />
 
-      {/* Shirt & Plus Badge (Theme Amber) */}
+      {/* 2. Shirt & Plus Badge (Theme Amber) */}
       <path
         transform="translate(769,458)"
         d="m0 0 5 2 13 10 38 28 18 13 16 12-1 9-15 76-4 21-8 11-12 17-14 17-14 15-10 10-11 9-10 8-18 12-18 10-23 10-33 11-28 7-31 6-13 2h-7l7-51 7-48v-7l-5 1-8 48-12 82 1 6-6 49-5 52-2 29-1 22v26l2 24 4 19 6 20 8 20 10 19v2h-333l5-4 20-12 16-11 19-14 13-10 16-13 11-9 30-26 13-12 11-9 13-12v-5l-10-17-5-8 1-3 24-8 23-12 11-8 11-9 8-8 5 2 6 2h14l9-4 6-4 5-4 7-11 3-12v-11l6-8 4-11v-11l-3-10-1-6 3-9v-10l-3-10-6-9-8-8-13-8-15-5-7-1h-21l-16 4-17 8-13 10-14 13-7 8-30 30-11 9-14 11-3 2-9 1-39 16-38 16h-2l1-32 4-78 3-46-1-2h-4l-1 2-3 36-5 96-1 20-1 8-16 8-38 18-32 17-28 17 1 5 4-1 28-16 28-15 24-12 33-15 32-14 38-16 13-5 4 1 16 28 15 26 9 15 14 24 10 17 4 7v4l-11 9-13 11-19 14-17 12-15 10-21 13-24 14-22 12-30 15-28 12-24 8-14 3h-25l-18-4-17-7-15-10-12-11-9-10-9-14-8-16-6-17-4-18-2-21v-16l2-22 4-23 8-33 11-43 13-44 12-36 6-16 8-18 8-16 9-16 12-17 9-11 9-10 7-8 8-7 15-12 19-12 19-10 23-9 23-7 34-7 3 1 8 16 10 14 7 7 13 10 18 10 17 6 12 3 8 1h14l14-3 10-4 11-8 9-12 5-13 7-33 1-1h45l40 3 45 6 44 8 8 2h5l11-12 9-11 9-10 18-22 13-16 10-13 11-14 15-20z"
@@ -44,7 +44,7 @@ export default function EmptyActivityIllustration({
         fill="var(--color-amber)"
       />
 
-      {/* Receipt & Skin Highlights (Theme Coolwhite) */}
+      {/* 3. Face, Hands & Receipt */}
       <path
         transform="translate(1154,454)"
         d="m0 0h15l9 5 5 6 2 5v14l-7 38-4 21-15 85-33 198-5 10-8 9-10 5-3 1h-280l-8-4-5-6-2-5v-13l19-89 10-47 14-68 13-66 7-36 4-9 6-8 9-7 11-4 29-4h7l6 15 9 15 8 9 13 10 14 7 13 4 8 1h19l18-4 15-7 11-7 11-11 9-13 7-16 3-12 2-15z"
@@ -71,7 +71,7 @@ export default function EmptyActivityIllustration({
         fill="var(--color-coolwhite)"
       />
 
-      {/* Receipt Bars & Dollar Badge (Theme Muted) */}
+      {/* 4. Receipt Bars & Dollar Badge */}
       <path
         transform="translate(1049,694)"
         d="m0 0h20l13 4 11 6 9 8 7 10 5 13 1 5v19l-3 13-7 14-8 10-7 7-11 7-11 5-9 2h-22l-13-4-11-6-9-8-7-10-5-12-2-13 1-14 5-16 7-12 10-11 13-9 11-5z"
@@ -88,7 +88,19 @@ export default function EmptyActivityIllustration({
         fill="var(--color-muted)"
       />
 
-      {/* Locked Coin Colors (Do Not Change on Theme Switch) */}
+      {/* 5. Eyes, Eyebrow, Nose, Mouth & Detail Strokes (Top Layer) */}
+      <path transform="translate(481,378)" d="m0 0h7l5 4 3 8 1 5v13l-3 8-2 2h-7l-5-5-3-7-1-5v-13l2-7z" fill="#0D0C0A" />
+      <path transform="translate(549,366)" d="m0 0h7l6 7 3 10v13l-3 8-3 2h-6l-5-6-3-7-1-5v-14l2-5z" fill="#0D0C0A" />
+      <path transform="translate(473,338)" d="m0 0h9l6 3-1 5-5 1h-9l-9 4-7 7-5 8h-5l-1-1 1-7 6-9 8-7 7-3z" fill="#0D0C0A" />
+      <path transform="translate(529,401)" d="m0 0h5l7 7 10 6 2 3v7l-4 8-8 7-4-1 1-7 5-6 1-5-10-6-5-6-1-6z" fill="#0D0C0A" />
+      <path transform="translate(477,454)" d="m0 0h8l16 3h26l10-2h5l2 2-1 11-4 11-6 9-5 4-8 4-11 1-9-2-10-6-8-9-5-11-2-7v-6z" fill="#0D0C0A" />
+      <path transform="translate(674,313)" d="m0 0 5 1 10 9v7l-12 12-7 8-7 7-9 11-4 4h-2l-2 4h-5l-5-5 1-5 10-16 8-12 15-23z" fill="#0D0C0A" />
+      <path transform="translate(709,351)" d="m0 0h7l6 7 1 2v8l-3 3-29 13-16 7-10 5-6-1-2-4 1-6 36-24z" fill="#0D0C0A" />
+      <path transform="translate(1033,891)" d="m0 0 7 1 10 7 8 6-1 5-10 11-8 10-13 15-7 8-2 2-4-1-5-3 1-6 10-24 13-30z" fill="#0D0C0A" />
+      <path transform="translate(1079,937)" d="m0 0 5 1 6 19-1 5-5 2-31 7-16 4h-7l-2-5 1-5 18-10 23-13z" fill="#0D0C0A" />
+      <path transform="translate(1053,712)" d="m0 0h6l3 2 1 7 10 5 3 4 1 4-2 4-2 1h-6l-6-5h-10l-4 3v6l6 3 12 3 8 6 3 6v11l-4 7-6 5-7 3-1 9-2 2h-7l-2-2-1-9-11-4-5-5v-7l3-3h6l2 4 6 2h9l5-2 2-6-1-3-7-3-13-4-6-4-3-6v-11l5-8 8-5 4-1 1-7z" fill="#0D0C0A" />
+
+      {/* 6. Locked Coin Colors (Do Not Change on Theme Switch) */}
       <path
         transform="translate(881,930)"
         d="m0 0h18l26 2 23 4 17 5 16 8 8 6 6 8 1 3 1 36 9 5 5 5 2 3 1 5v40l-3 8-7 7-16 8-24 7-25 4-20 2-17 1h-27l-26-2-24-4-18-5-15-8-6-7-1-2-1-9v-23l-2-6-5-6-2-5v-50l4-8 5-5 7-6 19-9 25-7 19-3z"
@@ -114,66 +126,18 @@ export default function EmptyActivityIllustration({
         d="m0 0h9l2 2v4l10 1 9 3 2 4-4 3h-7l-8-2h-16l-5 1 1 3 8 2 17 2 11 4 5 5-1 7-5 4-9 3-9 1v5l-2 1h-8l-2-1-1-5-14-2-8-4-1-4 3-2h9l12 3h12l7-2 1-3-30-5-9-4-3-3 1-7 6-5 11-3h4v-5z"
         fill="#0B0B0A"
       />
-      <path
-        transform="translate(996,1010)"
-        d="m0 0 5 2 5 5-1 7-8 6-11 5-12 4-2-1 15-9 7-8z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(903,990)"
-        d="m0 0 4 2h-2l-1 7 7 4v1l7 1v1l-11 1h-10v-3l-2-5-3-5v-2z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(877,960)"
-        d="m0 0h16v4l1 3-2 1h-11l-8-2-1-4z"
-        fill="#FC7102"
-      />
-      <path
-        transform="translate(882,976)"
-        d="m0 0 11 1 5 2-1 4-7 2h-12l2-2-2-2v-3l-2-1z"
-        fill="#FC7002"
-      />
-      <path
-        transform="translate(785,969)"
-        d="m0 0 1 2h2l2 4-1 4-5 2-1-2v-9z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(798,985)"
-        d="m0 0 6 2 1 6-4 1-6-3v-4h3z"
-        fill="#FC6502"
-      />
-      <path
-        transform="translate(882,976)"
-        d="m0 0h6l-3 2v5h-5l-2-2v-3l-2-1z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(887,962)"
-        d="m0 0h7l-1 2 1 3-2 1h-11v-1l6-1z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(875,947)"
-        d="m0 0h3v5l-9 1 1-3z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(795,957)"
-        d="m0 0 2 1-4 5-6 4v-3z"
-        fill="#FC6902"
-      />
-      <path
-        transform="translate(855,939)"
-        d="m0 0h9l3 2-8 3v-2l-3-1z"
-        fill="#FC6402"
-      />
-      <path
-        transform="translate(805,952)"
-        d="m0 0h7l-4 4-7 1 2-4z"
-        fill="#FC6402"
-      />
+      <path transform="translate(996,1010)" d="m0 0 5 2 5 5-1 7-8 6-11 5-12 4-2-1 15-9 7-8z" fill="#FC6402" />
+      <path transform="translate(903,990)" d="m0 0 4 2h-2l-1 7 7 4v1l7 1v1l-11 1h-10v-3l-2-5-3-5v-2z" fill="#FC6402" />
+      <path transform="translate(877,960)" d="m0 0h16v4l1 3-2 1h-11l-8-2-1-4z" fill="#FC7102" />
+      <path transform="translate(882,976)" d="m0 0 11 1 5 2-1 4-7 2h-12l2-2-2-2v-3l-2-1z" fill="#FC7002" />
+      <path transform="translate(785,969)" d="m0 0 1 2h2l2 4-1 4-5 2-1-2v-9z" fill="#FC6402" />
+      <path transform="translate(798,985)" d="m0 0 6 2 1 6-4 1-6-3v-4h3z" fill="#FC6502" />
+      <path transform="translate(882,976)" d="m0 0h6l-3 2v5h-5l-2-2v-3l-2-1z" fill="#FC6402" />
+      <path transform="translate(887,962)" d="m0 0h7l-1 2 1 3-2 1h-11v-1l6-1z" fill="#FC6402" />
+      <path transform="translate(875,947)" d="m0 0h3v5l-9 1 1-3z" fill="#FC6402" />
+      <path transform="translate(795,957)" d="m0 0 2 1-4 5-6 4v-3z" fill="#FC6902" />
+      <path transform="translate(855,939)" d="m0 0h9l3 2-8 3v-2l-3-1z" fill="#FC6402" />
+      <path transform="translate(805,952)" d="m0 0h7l-4 4-7 1 2-4z" fill="#FC6402" />
     </svg>
   );
 }

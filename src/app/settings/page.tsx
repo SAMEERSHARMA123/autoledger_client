@@ -304,7 +304,7 @@ export default function SettingsPage() {
         {/* 1. INLINE PAGE HEADER */}
         <header className="mb-8 pl-4">
           <h1 className="font-sans text-4xl font-bold uppercase tracking-tight text-[var(--color-vanta)]">
-            Account Settings //
+            Account Settings 
           </h1>
           <p className="font-mono text-sm text-[var(--color-muted)] mt-1 uppercase">
             Manage profile, themes, budget limits & security
