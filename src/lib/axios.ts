@@ -3,11 +3,9 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 const getBaseUrl = () => {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  // Use live production URL from .env if it does not contain localhost
   if (envUrl && !envUrl.includes('localhost')) {
     return envUrl;
   }
-  // Automatically connect to the active host IP on port 5000 during local/mobile dev
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:5000/api`;
   }
@@ -28,21 +26,22 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (originalRequest?.url?.includes('/auth/refresh')) {
-      return Promise.reject(error);
-    }
+    const isAuthEndpoint =
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/register') ||
+      originalRequest?.url?.includes('/auth/refresh');
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
       try {
         await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch {
         useAuthStore.setState({ user: null, isAuthenticated: false });
         if (typeof window !== 'undefined' && !['/login', '/register'].includes(window.location.pathname)) {
           window.location.href = '/login';
         }
-        return Promise.reject(refreshError);
+        return Promise.reject(error);
       }
     }
 
