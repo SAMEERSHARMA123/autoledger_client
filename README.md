@@ -137,3 +137,5 @@ The frontend is deployed on Render. Set `NEXT_PUBLIC_API_URL` to your deployed b
 ## Author
 
 **Sameer Sharma** — Jaipur, India
+
+© 2026 Sameer Sharma. See LICENSE for terms.
