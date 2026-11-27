@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";
@@ -53,6 +54,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <Script
+          src="https://googletagmanager.com"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0T75JR7QHF');
+          `}
+        </Script>
       </head>
       {/* 3. Inject variables and apply font-sans as base */}
       <body
