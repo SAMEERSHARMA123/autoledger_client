@@ -3,7 +3,7 @@
 A fast, clean expense tracker interface for logging daily spending, splitting money with friends, and understanding where your money goes.
 
 **Live demo:** https://autoledger-client.onrender.com
-**Backend repo:** https://github.com/SAMEERSHARMA123/Auto_Ledger_Server.git
+**Backend repo:** https://github.com/SAMEERSHARMA123/Auto_Ledger_Server
 
 ---
 
@@ -64,7 +64,7 @@ A fast, clean expense tracker interface for logging daily spending, splitting mo
 
 ### Prerequisites
 - Node.js 18 or later
-- The AutoLedger backend running (see the backend README)
+- The AutoLedger backend running (see the backend repo)
 
 ### Installation
 
@@ -101,8 +101,6 @@ npm start
 
 ## Project Structure
 
-> Update this to match your folders.
-
 ```
 autoledger-client/
 ├── app/            # Pages and routes (dashboard, ledger, debts, insights, settings, login)
@@ -111,20 +109,6 @@ autoledger-client/
 ├── public/         # Static assets
 └── ...
 ```
-
----
-
-## Screenshots
-
-Add images to `docs/screenshots/` and link them here:
-
-| Dashboard | Ledger History |
-|-----------|----------------|
-| `![Dashboard](docs/screenshots/dashboard.png)` | `![Ledger](docs/screenshots/ledger.png)` |
-
-| Debts | Insights | Settings |
-|-------|----------|----------|
-| `![Debts](docs/screenshots/debts.png)` | `![Insights](docs/screenshots/insights.png)` | `![Settings](docs/screenshots/settings.png)` |
 
 ---
 
